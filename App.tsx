@@ -9,6 +9,8 @@ import LandingPage from './components/LandingPage';
 import LiveAssistant from './components/LiveAssistant';
 import DemoFlow from './components/DemoFlow';
 import ExportView from './components/ExportView';
+import UsageWidget from './components/UsageWidget';
+import UsageDashboard from './components/UsageDashboard';
 import { AppStep, AnalysisMetrics, ProjectConfig, IngestedFile } from './types';
 import { analyzeCourseContent } from './services/geminiService';
 import { CheckCircle, ChevronRight, Home } from 'lucide-react';
@@ -22,6 +24,7 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<AnalysisMetrics | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
+  const [isUsageDashboardOpen, setIsUsageDashboardOpen] = useState(false);
 
   // Step 1: User creates project and drops files
   const handleProjectCreate = (name: string, text: string, uploadedFiles: IngestedFile[]) => {
@@ -94,12 +97,28 @@ const App: React.FC = () => {
 
   // If on landing page, show full screen landing
   if (currentStep === AppStep.LANDING) {
-    return <LandingPage onStart={() => setCurrentStep(AppStep.DEMO)} />;
+    return (
+      <>
+        <LandingPage onStart={() => setCurrentStep(AppStep.DEMO)} />
+        <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+        {isUsageDashboardOpen && (
+          <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+        )}
+      </>
+    );
   }
 
   // If on Demo Flow, show full screen demo (no sidebar)
   if (currentStep === AppStep.DEMO) {
-      return renderContent();
+      return (
+        <>
+          {renderContent()}
+          <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+          {isUsageDashboardOpen && (
+            <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+          )}
+        </>
+      );
   }
 
   return (
@@ -152,6 +171,12 @@ const App: React.FC = () => {
             {renderContent()}
         </div>
       </main>
+
+      {/* Usage Widget & Dashboard - available on all app views */}
+      <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+      {isUsageDashboardOpen && (
+        <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+      )}
     </div>
   );
 };
