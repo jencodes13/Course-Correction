@@ -1,39 +1,34 @@
-Agent: Frontend Agent
-Branch: frontend/design-convergence
-Last update: 2026-02-05 12:55 AM CST
+Agent: Gemini/Service-Layer
+Branch: gemini/service-layer
+Last update: 2026-02-05
 
 DONE:
-- Added Gemini API usage tracking dashboard with per-call breakdown
-- Created UsageWidget (floating corner widget showing tokens/cost)
-- Created UsageDashboard (full modal with Overview/Calls/Models tabs)
-- Wrapped all geminiService functions to capture usageMetadata
-- Added localStorage persistence for usage records across sessions
-- Added estimated cost calculation based on Gemini pricing
-- Created LocationInput component with reverse geocoding
-- Fixed "detect location" to show "City, State ZIP" instead of coordinates
-- Used free OpenStreetMap Nominatim API (no extra API keys needed)
-- Updated .gitignore to exclude service account credentials
+- Added new types for demo flow: UpdateMode, Citation, InferredSector, DemoSlideEnhanced, DemoResult
+- Created `inferSectorFromContent()` - analyzes uploaded files/topic, returns sector with confidence level, flags ambiguity
+- Created `generateDemoSlidesEnhanced()` - uses Google Search grounding for real regulatory content, extracts groundingMetadata for citations
+- Refactored DemoFlow component with new 5-step flow:
+  1. Update mode selection (Regulatory / Visual / Full)
+  2. File upload + topic input
+  3. Sector confirmation (AI-inferred, editable) + location
+  4. Style selection (skipped for regulatory-only)
+  5. Before/After split view results with citations panel
+- Integrated LocationInput component for geolocation
+- Added usage tracking to all Gemini API calls
 
 IN PROGRESS:
-- Slide presentation view redesign (DemoFlow step 5 results)
-- User asked about making slides look like actual presentation slides instead of cards
-- DemoFlow.tsx was restructured by another agent with before/after split view
-- Need to clarify with user what design direction they want
+- Nothing half-finished
 
 BLOCKED:
-- Need user input on slide design direction:
-  1. Keep before/after split view but polish it
-  2. Create actual 16:9 slide presentation view with navigation
-  3. Generate real images instead of showing "Visual Prompt" text
+- Nothing
 
 NEXT:
-- Redesign slide results view based on user preference
-- Consider using Gemini image generation for slide backgrounds
-- Font selection (user mentioned wanting to find better fonts)
-- Review Supabase migration (CLAUDE.md indicates geminiService.ts is deprecated)
+- Test the full demo flow end-to-end
+- Refine search grounding prompts for better regulatory citation extraction
+- Improve response parsing for before/after slide content
+- Add loading states and error handling polish
+- Consider caching for sector inference results
 
 WARNINGS:
-- geminiService.ts still calls Gemini API directly (exposes API key in browser)
-- CLAUDE.md now says to use supabaseClient.ts via edge functions instead
-- Usage tracking currently wraps geminiService.ts - will need update after migration
-- DemoFlow.tsx was significantly restructured - may have breaking changes
+- The response parsing in `parseResponseToSlides()` is basic - uses regex to extract before/after content from free-form text. May need refinement based on actual Gemini output patterns.
+- Fallback slides are generic placeholders - should be improved with sector-specific content
+- No retry logic for API failures yet

@@ -9,6 +9,55 @@ export enum AppStep {
   EXPORT = 'EXPORT'
 }
 
+// Demo Flow Types
+export type UpdateMode = 'visual' | 'regulatory' | 'full';
+
+export interface Citation {
+  id: number;
+  title: string;
+  url: string;
+  snippet: string;
+  accessedDate: string;
+}
+
+export interface InferredSector {
+  sector: string;
+  confidence: 'high' | 'medium' | 'low';
+  alternatives?: string[];
+  reasoning: string;
+  isAmbiguous: boolean;
+  detectedTopics?: string[];
+}
+
+export interface SlideContent {
+  title: string;
+  bullets: string[];
+  citationIds: number[]; // References to Citation.id
+}
+
+export interface DemoSlideEnhanced {
+  id: string;
+  before: SlideContent;
+  after: SlideContent;
+  changesSummary: string;
+  visualStyle: {
+    accentColor: string;
+    layout: 'split' | 'stacked' | 'overlay';
+  };
+}
+
+export interface DemoResult {
+  slides: DemoSlideEnhanced[];
+  citations: Citation[];
+  metadata: {
+    sector: string;
+    location: string;
+    updateMode: UpdateMode;
+    generatedAt: string;
+    searchQueries: string[];
+  };
+}
+
 export interface ProjectConfig {
   goal: 'regulatory' | 'visual' | 'full';
   targetAudience: string;
