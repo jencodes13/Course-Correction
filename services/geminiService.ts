@@ -1,17 +1,45 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisMetrics, RegulatoryUpdate, VisualTransformation, ProjectConfig, IngestedFile, DemoSlide, GeneratedUseCase } from "../types";
+import { recordUsage } from "./usageTracker";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
+
+/**
+ * Helper to extract usage metadata from response and record it
+ */
+function trackUsage(response: any, model: string, functionName: string, startTime: number): void {
+  const durationMs = Date.now() - startTime;
+
+  // The @google/genai SDK includes usageMetadata in the response
+  const usage = response.usageMetadata;
+  if (usage) {
+    recordUsage(
+      model,
+      functionName,
+      usage.promptTokenCount || 0,
+      usage.candidatesTokenCount || 0,
+      durationMs
+    );
+  } else {
+    // Fallback: estimate tokens from response length if no metadata
+    const responseText = response.text || '';
+    const estimatedOutputTokens = Math.ceil(responseText.length / 4);
+    recordUsage(model, functionName, 0, estimatedOutputTokens, durationMs);
+  }
+}
 
 /**
  * 1. Multimodal Analysis (Text + Images + Video)
  * Uses gemini-3-pro-preview for deep understanding of complex inputs.
  */
 export const analyzeCourseContent = async (text: string, files: IngestedFile[], config: ProjectConfig): Promise<AnalysisMetrics> => {
+  const startTime = Date.now();
+  const model = 'gemini-3-pro-preview';
+
   try {
     const parts: any[] = [];
-    
+
     // Add Text
     if (text) parts.push({ text: `Course Text Content: ${text}` });
 
@@ -29,7 +57,7 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
 
     const prompt = `
       Analyze this course material.
-      
+
       Context:
       - Goal: ${config.goal}
       - Audience: ${config.targetAudience}
@@ -43,7 +71,7 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
 
     // gemini-3-pro-preview is required for Video Understanding and Complex Image Analysis
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model,
       contents: {
         parts: [...parts, { text: prompt }]
       },
@@ -62,6 +90,8 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
         }
       }
     });
+
+    trackUsage(response, model, 'analyzeCourseContent', startTime);
 
     if (response.text) {
       return JSON.parse(response.text) as AnalysisMetrics;
@@ -86,16 +116,23 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
  */
 export const identifyLocalAuthority = async (location: string): Promise<string> => {
   if (!location) return "General Federal Standards";
+
+  const startTime = Date.now();
+  const model = "gemini-2.5-flash";
+
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model,
       contents: `What is the specific government body or code authority responsible for professional training regulations in ${location}?`,
       config: {
         tools: [{ googleMaps: {} }],
       },
     });
+
+    trackUsage(response, model, 'identifyLocalAuthority', startTime);
+
     // Extract text directly, maps grounding chunks are usually appended or referenced
-    return response.text || location; 
+    return response.text || location;
   } catch (e) {
     console.error("Maps Grounding Error", e);
     return location;
@@ -107,6 +144,9 @@ export const identifyLocalAuthority = async (location: string): Promise<string> 
  * Uses gemini-3-flash-preview with Google Search to get live facts.
  */
 export const performRegulatoryUpdate = async (content: string, domainContext: string, location: string): Promise<RegulatoryUpdate[]> => {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
   try {
     // First, try to get local context if a location is provided
     let localAuthority = domainContext;
@@ -120,20 +160,19 @@ export const performRegulatoryUpdate = async (content: string, domainContext: st
       Context: ${localAuthority}.
       Task: Identify 3 outdated sections. Rewrite them for 2024/2025 compliance.
       YOU MUST USE GOOGLE SEARCH to find the latest specific codes.
-      
+
       Content: "${content.substring(0, 2000)}"
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model,
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // responseMimeType: "application/json" is often incompatible with tools in some preview models depending on the strictness,
-        // but let's try to instruct structured output via text if schema fails with tools.
-        // For safety with Search Grounding, we will parse the text manually or ask for JSON string.
       }
     });
+
+    trackUsage(response, model, 'performRegulatoryUpdate', startTime);
 
     // Clean up response text to find JSON
     const text = response.text || "[]";
@@ -141,7 +180,7 @@ export const performRegulatoryUpdate = async (content: string, domainContext: st
     if (jsonMatch) {
         return JSON.parse(jsonMatch[0]) as RegulatoryUpdate[];
     }
-    
+
     // Fallback if search results break JSON structure
     return [{
         id: "1",
@@ -162,9 +201,12 @@ export const performRegulatoryUpdate = async (content: string, domainContext: st
  * Uses gemini-2.5-flash-image (Nano Banana).
  */
 export const generateAsset = async (prompt: string, base64Image?: string): Promise<string | null> => {
+    const startTime = Date.now();
+    const model = 'gemini-2.5-flash-image';
+
     try {
         const parts: any[] = [];
-        
+
         // If editing an existing image
         if (base64Image) {
             parts.push({
@@ -180,10 +222,11 @@ export const generateAsset = async (prompt: string, base64Image?: string): Promi
         }
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
+            model,
             contents: { parts },
-            // config: { responseMimeType: "image/png" } // Not strictly needed, we look for inlineData
         });
+
+        trackUsage(response, model, 'generateAsset', startTime);
 
         // Extract image from response
         for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -203,9 +246,12 @@ export const generateAsset = async (prompt: string, base64Image?: string): Promi
  * Visual Analysis
  */
 export const performVisualTransformation = async (content: string, theme: string): Promise<VisualTransformation[]> => {
+    const startTime = Date.now();
+    const model = 'gemini-3-flash-preview';
+
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model,
         contents: `Theme: ${theme}. Identify 3 boring sections in: "${content.substring(0,2000)}". Suggest visual transforms (timeline, accordion, etc). Return JSON.`,
         config: {
           responseMimeType: "application/json",
@@ -225,6 +271,9 @@ export const performVisualTransformation = async (content: string, theme: string
           }
         }
       });
+
+      trackUsage(response, model, 'performVisualTransformation', startTime);
+
       return JSON.parse(response.text || "[]");
     } catch (e) {
         return [];
@@ -236,15 +285,18 @@ export const performVisualTransformation = async (content: string, theme: string
  * Generates 3 initial slides for the free trial flow.
  */
 export const generateDemoSlides = async (topic: string, location: string, style: string, fileData?: string): Promise<DemoSlide[]> => {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
   try {
     const parts: any[] = [];
-    
+
     let promptText = `
       Create 3 introductory training slides for a course about "${topic}".
       Context:
       - Location: ${location} (Ensure any regulatory mentions match this region).
       - Style: ${style}.
-      
+
       Return a JSON array of 3 slides. Each slide has:
       - title
       - bullets (array of strings)
@@ -254,13 +306,10 @@ export const generateDemoSlides = async (topic: string, location: string, style:
 
     if (fileData) {
         const base64Data = fileData.split(',')[1];
-        // Guess mime type from header or just assume PDF/Image for now as generic data
-        // For simplicity in this demo function, let's treat it as text extraction or image depending on prefix
-        // But for Gemini API, we pass inlineData.
         let mimeType = "application/pdf";
         if (fileData.includes("image/png")) mimeType = "image/png";
         if (fileData.includes("image/jpeg")) mimeType = "image/jpeg";
-        
+
         parts.push({
             inlineData: {
                 mimeType: mimeType,
@@ -273,7 +322,7 @@ export const generateDemoSlides = async (topic: string, location: string, style:
     parts.push({ text: promptText });
 
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview', // Good balance of speed and reasoning for this demo
+        model,
         contents: { parts },
         config: {
             responseMimeType: "application/json",
@@ -292,6 +341,8 @@ export const generateDemoSlides = async (topic: string, location: string, style:
             }
         }
     });
+
+    trackUsage(response, model, 'generateDemoSlides', startTime);
 
     return JSON.parse(response.text || "[]");
 
@@ -325,11 +376,11 @@ export const generateDemoSlides = async (topic: string, location: string, style:
  * 6. Landing Page Use Case Generator
  * Generates creative use cases for the infinite grid.
  * Uses gemini-3-flash-preview for low latency.
- *
- * @param batchSize - Number of use cases to generate (default 8)
- * @returns Array of GeneratedUseCase objects
  */
 export const generateCreativeUseCases = async (batchSize: number = 8): Promise<GeneratedUseCase[]> => {
+    const startTime = Date.now();
+    const model = 'gemini-3-flash-preview';
+
     try {
         const prompt = `
             Generate ${batchSize} diverse, high-value corporate training use cases where an AI updates regulations and modernizes outdated course materials.
@@ -350,7 +401,7 @@ export const generateCreativeUseCases = async (batchSize: number = 8): Promise<G
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -371,6 +422,8 @@ export const generateCreativeUseCases = async (batchSize: number = 8): Promise<G
                 }
             }
         });
+
+        trackUsage(response, model, 'generateCreativeUseCases', startTime);
 
         return JSON.parse(response.text || "[]") as GeneratedUseCase[];
     } catch (e) {
