@@ -16,7 +16,8 @@ CourseCorrect uses advanced AI to ingest existing course materials, analyze them
 
 - **Frontend**: React 19 + TypeScript + Vite
 - **Styling**: Tailwind CSS
-- **AI**: Google Gemini API (`@google/genai`)
+- **Backend**: Supabase (PostgreSQL + Edge Functions + Storage)
+- **AI**: Google Gemini API (via Supabase Edge Functions)
   - `gemini-3-pro-preview` - Multimodal course analysis
   - `gemini-3-flash-preview` - Fast content generation, regulatory updates
   - `gemini-2.5-flash` - Maps grounding for jurisdiction lookup
@@ -41,10 +42,22 @@ coursecorrect/
 │   ├── Sidebar.tsx          # Navigation
 │   └── LiveAssistant.tsx    # Real-time voice consultation
 ├── services/
-│   └── geminiService.ts     # All Gemini API integrations
+│   ├── geminiService.ts     # Direct Gemini API (DEPRECATED - use supabaseClient)
+│   └── supabaseClient.ts    # Supabase client with auth, DB, storage, edge functions
+├── supabase/
+│   ├── migrations/          # Database schema
+│   ├── functions/           # Edge functions (Gemini API proxy)
+│   │   ├── analyze-course/
+│   │   ├── regulatory-update/
+│   │   ├── visual-transform/
+│   │   ├── generate-asset/
+│   │   ├── jurisdiction-lookup/
+│   │   ├── demo-slides/
+│   │   └── _shared/         # Shared utilities (cors, auth, gemini)
+│   └── config.toml
 ├── types.ts                 # TypeScript interfaces
 ├── App.tsx                  # Main app with routing
-└── .env.local               # GEMINI_API_KEY (gitignored)
+└── .env.local               # Supabase keys (GEMINI_API_KEY to be removed)
 ```
 
 ## The Dual-Engine Approach
@@ -185,3 +198,97 @@ npm run build
 ### Language Style
 - **Landing page**: Plain language, accessible to L&D managers
 - **Actual app**: Specific citations with regulation numbers, last-updated dates, and source links (e.g., "OSHA 1910.134(c)(2) - Updated Jan 2024")
+
+---
+
+## Integration Layer Instructions
+
+### CRITICAL: Migrate from Direct Gemini API to Edge Functions
+
+The frontend currently calls Gemini API directly via `services/geminiService.ts`, which **exposes the API key in the browser**. This must be migrated to use Supabase Edge Functions via `services/supabaseClient.ts`.
+
+### Migration Map
+
+| Current (geminiService.ts) | New (supabaseClient.ts) | Edge Function |
+|---------------------------|-------------------------|---------------|
+| `analyzeCourseContent()` | `analyzeContent()` | `analyze-course` |
+| `performRegulatoryUpdate()` | `getRegulatoryUpdates()` | `regulatory-update` |
+| `performVisualTransformation()` | `getVisualTransformations()` | `visual-transform` |
+| `generateAsset()` | `generateAsset()` | `generate-asset` |
+| `identifyLocalAuthority()` | Call edge function directly | `jurisdiction-lookup` |
+| `generateDemoSlides()` | Call edge function directly | `demo-slides` |
+
+### Steps for Integration Layer
+
+1. **Replace imports** in components:
+   ```typescript
+   // OLD - exposes API key
+   import { analyzeCourseContent } from '../services/geminiService';
+
+   // NEW - secure via edge functions
+   import { analyzeContent } from '../services/supabaseClient';
+   ```
+
+2. **Add authentication** - Components need user auth before calling protected edge functions:
+   ```typescript
+   import { supabase, getCurrentUser } from '../services/supabaseClient';
+   ```
+
+3. **Update components that use Gemini**:
+   - `DiagnosisDashboard.tsx` → use `analyzeContent()`
+   - `RegulatoryView.tsx` → use `getRegulatoryUpdates()`
+   - `VisualView.tsx` → use `getVisualTransformations()`
+   - `DemoFlow.tsx` → call `demo-slides` edge function
+   - Any image generation → use `generateAsset()`
+
+4. **Add project persistence** - Save/load projects from Supabase:
+   ```typescript
+   import { createProject, getProjects, updateProject } from '../services/supabaseClient';
+   ```
+
+5. **Use Supabase Storage** for file uploads instead of base64 in memory:
+   ```typescript
+   import { uploadFile, getProjectFiles } from '../services/supabaseClient';
+   ```
+
+6. **After migration complete**, remove `GEMINI_API_KEY` from `.env.local` - it now lives only in Supabase secrets.
+
+### Environment Variables After Migration
+
+```env
+# Keep these (frontend needs them)
+VITE_SUPABASE_URL=https://yyqgxzbzdcsjdlxiydyj.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+
+# Remove this (now in Supabase secrets only)
+# GEMINI_API_KEY=...
+```
+
+### Edge Function Endpoints
+
+All deployed at: `https://yyqgxzbzdcsjdlxiydyj.supabase.co/functions/v1/`
+
+| Endpoint | Auth Required | Purpose |
+|----------|---------------|---------|
+| `analyze-course` | Yes | Course content analysis |
+| `regulatory-update` | Yes | Fact-checking with Search grounding |
+| `visual-transform` | Yes | Visual transformation suggestions |
+| `generate-asset` | Yes | AI image generation |
+| `jurisdiction-lookup` | Yes | Local authority identification |
+| `demo-slides` | No | Demo wizard (public for hackathon) |
+
+### Database Tables Available
+
+- `projects` - Course modernization projects
+- `uploaded_files` - File metadata (actual files in Storage)
+- `analyses` - Diagnosis results
+- `regulatory_updates` - Proposed regulatory changes
+- `visual_transformations` - Visual improvement suggestions
+- `generated_assets` - AI-generated images
+- `exports` - SCORM/xAPI export jobs
+
+### Storage Buckets
+
+- `course-files` - User uploads (private)
+- `generated-assets` - AI images (public)
+- `exports` - SCORM packages (private)
