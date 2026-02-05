@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background font-sans;
+  }
+  h1, h2, h3, h4, h5, h6, button {
+    @apply font-heading;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-sleek {
+    scrollbar-width: thin;
+  }
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Floating card shadow utilities */
+.floating-card-shadow {
+  @apply shadow-floating-card transition-all duration-300;
+}
+.floating-card-shadow:hover {
+  @apply -translate-y-1 shadow-floating-card-hover;
+}

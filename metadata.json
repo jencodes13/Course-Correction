@@ -1,0 +1,8 @@
+{
+  "name": "CourseCorrect",
+  "description": "AI-powered course modernization platform. Ingests legacy training materials to automatically update regulatory facts and overhaul visual engagement using Gemini AI.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}
