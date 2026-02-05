@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Upload, MapPin, Palette, ArrowRight, Loader2, CheckCircle, FileText } from 'lucide-react';
+import { Upload, Palette, ArrowRight, Loader2, CheckCircle, FileText } from 'lucide-react';
 import { generateDemoSlides } from '../services/geminiService';
 import { DemoSlide } from '../types';
+import LocationInput from './LocationInput';
 
 interface DemoFlowProps {
   onBack: () => void;
@@ -28,23 +29,6 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
               if (!topic) setTopic(f.name.split('.')[0]); // Auto-fill topic
           };
           reader.readAsDataURL(f);
-      }
-  };
-
-  // Step 2: Location
-  const handleGeoLocation = () => {
-      if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                  setLocation(`Lat: ${pos.coords.latitude.toFixed(2)}, Long: ${pos.coords.longitude.toFixed(2)} (Local)`);
-              },
-              (err) => {
-                  console.error(err);
-                  // Fail silently or just focus the input
-                  const input = document.getElementById('location-input');
-                  if (input) input.focus();
-              }
-          );
       }
   };
 
@@ -128,23 +112,11 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Target Location</label>
-                        <div className="flex gap-2">
-                            <input 
-                                id="location-input"
-                                type="text" 
-                                value={location}
-                                onChange={(e) => setLocation(e.target.value)}
-                                placeholder="e.g. Austin, TX or London, UK"
-                                className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                            <button 
-                                onClick={handleGeoLocation}
-                                className="bg-indigo-50 text-indigo-600 p-3 rounded-xl hover:bg-indigo-100 transition-colors"
-                                title="Detect Current Location (Optional)"
-                            >
-                                <MapPin className="w-6 h-6" />
-                            </button>
-                        </div>
+                        <LocationInput
+                            value={location}
+                            onChange={setLocation}
+                            placeholder="e.g. Austin, TX or London, UK"
+                        />
                         <p className="text-xs text-slate-400 mt-2">Enter manually or click pin to detect.</p>
                     </div>
 
