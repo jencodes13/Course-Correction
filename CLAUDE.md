@@ -17,10 +17,9 @@ CourseCorrect uses advanced AI to ingest existing course materials, analyze them
 - **Frontend**: React 19 + TypeScript + Vite
 - **Styling**: Tailwind CSS
 - **Backend**: Supabase (PostgreSQL + Edge Functions + Storage)
-- **AI**: Google Gemini API (via Supabase Edge Functions)
-  - `gemini-3-pro-preview` - Multimodal course analysis
-  - `gemini-3-flash-preview` - Fast content generation, regulatory updates
-  - `gemini-2.5-flash` - Maps grounding for jurisdiction lookup
+- **AI**: Google Gemini API (via Supabase Edge Functions with direct fallback)
+  - `gemini-3-pro-preview` - Multimodal course analysis (document scanning + scoring)
+  - `gemini-3-flash-preview` - Content generation, regulatory research (with Search Grounding), jurisdiction lookup, visual transforms
   - `gemini-2.5-flash-image` - Asset/image generation
   - `gemini-2.5-flash-native-audio-preview` - Live voice assistant
 - **Icons**: Lucide React
@@ -32,7 +31,8 @@ CourseCorrect uses advanced AI to ingest existing course materials, analyze them
 coursecorrect/
 ├── components/
 │   ├── LandingPage.tsx      # Infinite canvas with AI-generated use case cards
-│   ├── DemoFlow.tsx         # 3-step demo wizard
+│   ├── DemoFlow.tsx         # 5-step demo wizard (mode → upload → sector/location → style → results)
+│   ├── AuthGate.tsx         # Email/password auth gate (wraps app views)
 │   ├── IngestionZone.tsx    # File upload & project creation
 │   ├── ConfigurationZone.tsx # Goal & context configuration
 │   ├── DiagnosisDashboard.tsx # Analysis results visualization
@@ -41,8 +41,10 @@ coursecorrect/
 │   ├── ExportView.tsx       # Export to SCORM/xAPI
 │   ├── Sidebar.tsx          # Navigation
 │   └── LiveAssistant.tsx    # Real-time voice consultation
+├── contexts/
+│   └── WorkflowContext.tsx  # Centralized app state (replaces scattered useState in App.tsx)
 ├── services/
-│   ├── geminiService.ts     # Direct Gemini API (DEPRECATED - use supabaseClient)
+│   ├── geminiService.ts     # Gemini routing layer: Edge Functions first, direct API fallback
 │   └── supabaseClient.ts    # Supabase client with auth, DB, storage, edge functions
 ├── supabase/
 │   ├── migrations/          # Database schema
@@ -102,15 +104,25 @@ coursecorrect/
 
 ## Gemini API Usage
 
-| Feature | Model | Grounding |
-|---------|-------|-----------|
-| Course Analysis | gemini-3-pro-preview | - |
-| Regulatory Updates | gemini-3-flash-preview | Google Search |
-| Jurisdiction Lookup | gemini-2.5-flash | Google Maps |
-| Visual Suggestions | gemini-3-flash-preview | - |
-| Image Generation | gemini-2.5-flash-image | - |
-| Landing Page Cards | gemini-3-flash-preview | - |
-| Voice Assistant | gemini-2.5-flash-native-audio | - |
+| Feature | Model | Grounding | Structured Output |
+|---------|-------|-----------|-------------------|
+| Course Analysis (scan + score) | gemini-3-pro-preview | - | Yes (responseSchema) |
+| Regulatory Updates | gemini-3-flash-preview | Google Search | Yes (responseSchema) |
+| Jurisdiction Lookup | gemini-3-flash-preview | Google Search | No (planned) |
+| Visual Suggestions | gemini-3-flash-preview | - | Yes (responseSchema) |
+| Image Generation | gemini-2.5-flash-image | - | N/A (image output) |
+| Demo Slides (basic) | gemini-3-flash-preview | - | Yes (responseSchema) |
+| Demo Slides (enhanced) | gemini-3-flash-preview | Google Search | No (uses regex parsing - NEEDS FIX) |
+| Landing Page Cards | gemini-3-flash-preview | - | Yes (responseSchema) |
+| Sector Inference | gemini-3-flash-preview | - | Yes (responseSchema) |
+| Voice Assistant | gemini-2.5-flash-native-audio | - | N/A (audio) |
+
+### Gemini Routing Architecture
+All Gemini calls in `geminiService.ts` follow this pattern:
+1. Try Supabase Edge Function (API key server-side, secure)
+2. Retry up to 3x with exponential backoff (1s, 2s delays; skip retry on 4xx)
+3. Fall back to direct Gemini API call if Edge Function fails
+4. Static fallback content as last resort (demo slides only)
 
 ## Future Goals
 
@@ -119,7 +131,14 @@ coursecorrect/
 - [x] Multi-format file ingestion
 - [x] Dual-engine analysis (Regulatory + Visual)
 - [x] Live voice assistant
+- [x] Edge Function routing with direct fallback + retry logic
+- [x] WorkflowContext (centralized state management)
+- [x] AuthGate (Supabase email/password, guards app views)
+- [x] Dark warm theme across all components (including DemoFlow)
+- [x] Demo flow E2E with improved slide parsing
 - [ ] Working SCORM/xAPI export
+- [ ] Search Grounding + Structured Output for enhanced demo slides (eliminates regex parsing)
+- [ ] Prompt improvements (see Gemini 3 section below)
 
 ### Phase 2: Enhanced Intelligence
 - [ ] Video transcript analysis and chapter generation
@@ -201,57 +220,151 @@ npm run build
 
 ---
 
+## Gemini 3 Prompting Best Practices
+
+These findings are from a comprehensive audit of Gemini 3 behavior. Follow these when writing or modifying any Gemini prompt.
+
+### Critical Rules
+
+1. **Temperature MUST stay at 1.0 (default).** Setting below 1.0 causes looping and degraded output with Gemini 3. Never override temperature.
+2. **Search Grounding + Structured Output work together in Gemini 3.** This is new — Gemini 2.x could not combine `tools: [{ googleSearch: {} }]` with `responseSchema`. Use this to eliminate all regex-based response parsing.
+3. **Place critical constraints LAST in the prompt.** Gemini 3 may drop negative constraints or formatting requirements that appear too early. Put the most important instructions at the END.
+4. **Be direct, not conversational.** Gemini 3 treats prompts as executable instructions. Remove: "Act as...", "You are an expert...", "Please...", "Could you...". Just state what to do.
+5. **Concise by default.** Gemini 3 gives the shortest correct answer. If you need detail, explicitly ask for it.
+6. **Don't repeat what the schema defines.** If using `responseSchema`, don't also say "Return JSON with fields X, Y, Z" in the prompt — it's redundant.
+
+### Useful Parameters
+
+- `thinking_level`: MINIMAL / MEDIUM / HIGH (default: HIGH). Use MEDIUM for latency-sensitive calls (demo slides, use case generation). Use HIGH for deep analysis (course scoring, regulatory research).
+- `propertyOrdering`: Order schema properties explicitly for consistent output.
+- `anyOf` and `$ref`: Gemini 3 supports more expressive JSON schemas.
+
+### Prompt Structure Template
+
+```
+<system_instruction>
+[Role context — what domain/task, NOT "you are an expert"]
+[Scoring rubrics or evaluation criteria if applicable]
+[Output format guidance only if not covered by responseSchema]
+</system_instruction>
+
+[User prompt with task-specific content]
+[Context/content to analyze]
+
+[CRITICAL CONSTRAINTS GO LAST — specificity requirements, what NOT to do, format rules]
+```
+
+## Prompt Improvement Priorities
+
+### CRITICAL (Next to implement)
+1. **Enhanced Demo Slides → Add responseSchema + Search Grounding combo.** Currently `generateDemoSlidesEnhancedDirect()` uses search grounding but parses output with ~80 lines of fragile regex (`parseResponseToSlides`). Adding `responseSchema` eliminates all parsing code. This is the #1 improvement — it's what judges see.
+2. **Course Analysis → Add scoring rubric.** Current prompts say "score freshness 0-100" with no rubric. Add: 90+ = all citations within 1 year, 70-89 = mostly current, 50-69 = several outdated, below 50 = significantly outdated. Same for engagement.
+3. **Regulatory Update (direct) → Add responseSchema + Search Grounding combo.** Same pattern as #1 — currently uses regex to parse `text.match(/\[.*\]/s)`.
+
+### HIGH
+4. **Demo Slides → Add bullet specificity constraint.** Gemini generates generic bullets like "Understanding the basics." Add constraint: "Each bullet must include a specific fact, regulation number, or actionable instruction."
+5. **All prompts → Simplify persona framing.** Remove "Act as the Regulatory Hound", "You are an expert instructional designer", etc. Replace with direct task description.
+
+### MEDIUM
+6. **Visual Transformation → Add content-type-to-format matching.** Tell the model: sequential steps → timeline, definitions → flip cards, comparisons → tables, procedures → process diagrams.
+7. **Live Audio Assistant → Expand system instruction.** Current: "You are an expert Instructional Designer consultant." Add CourseCorrect product context so it can give relevant guidance.
+8. **All prompts → Use XML/Markdown structural tags** to separate instructions from user content (e.g., `<content>...</content>`).
+
+### LOW
+9. Landing page use cases — minor simplification
+10. Sector inference — already well-structured
+
+## Design System
+
+### Dark Warm Theme Tokens (Tailwind)
+
+All app views use these consistent tokens defined in `tailwind.config.js`:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `background` | `#0c0b09` | Page backgrounds |
+| `card` | `#1a1914` | Card/panel backgrounds |
+| `surface` | `rgba(255,248,230,0.04)` | Subtle elevated surfaces |
+| `surface-border` | `rgba(255,248,230,0.08)` | Borders, dividers |
+| `text-primary` | `#f5f0e0` | Headings, body text |
+| `text-muted` | `rgba(245,240,224,0.5)` | Secondary text, labels |
+| `accent` | `#c8956c` | Warm amber — buttons, links, active states |
+| `success` | `#6abf8a` | Positive scores, confirmations |
+| `warning` | `#c27056` | Alerts, low scores, errors |
+
+### Font Stack
+- `font-sans`: Lato (body text)
+- `font-heading`: Poppins (headings, buttons)
+- `font-serif`: DM Serif Display (decorative)
+
+### Components Themed
+All components use these tokens: LandingPage, DemoFlow, AuthGate, Sidebar, IngestionZone, ConfigurationZone, DiagnosisDashboard, RegulatoryView, VisualView, ExportView.
+
+## Working Agreement (PM Process)
+
+### Autonomous (agents can proceed without approval)
+- Backend logic (Edge Functions, API routing, retry logic, state management)
+- Bug fixes (type errors, model mismatches, config issues)
+- Performance optimizations
+- Code organization / refactoring
+
+### Requires user input FIRST
+- Design/visual decisions (themes, colors, layout, component styling, animations)
+- User-facing flow decisions (what steps exist, what happens at each step, navigation)
+- Copy/content decisions (button labels, error messages, CTA text)
+- Prompt wording that affects what users/judges see (demo output quality, analysis scoring)
+- Any changes to LandingPage.tsx (frozen — do not modify without explicit approval)
+
+### File Ownership (when running parallel agents)
+Prevent merge conflicts by assigning strict file ownership:
+- **Gemini/Service agent**: `geminiService.ts`, `DemoFlow.tsx`, `LocationInput.tsx`, `types.ts`, `supabase/functions/*/`
+- **App/Architecture agent**: `App.tsx`, `WorkflowContext.tsx`, `AuthGate.tsx`, `supabaseClient.ts`, Sidebar, app-view components
+- **UX/Design agent**: `index.css`, `tailwind.config.js`, component styling only (no logic changes)
+- **No agent touches another agent's files.** Coordination goes through the PM.
+
+---
+
 ## Integration Layer Instructions
 
-### CRITICAL: Migrate from Direct Gemini API to Edge Functions
+### STATUS: Edge Function Routing COMPLETE (Day 5)
 
-The frontend currently calls Gemini API directly via `services/geminiService.ts`, which **exposes the API key in the browser**. This must be migrated to use Supabase Edge Functions via `services/supabaseClient.ts`.
+`geminiService.ts` now routes all Gemini calls through Edge Functions first with direct API fallback. The pattern:
+```typescript
+export async function analyzeCourseContent(text, files, config) {
+  try {
+    // Try edge function (API key server-side)
+    const result = await withRetry(() =>
+      supabase.functions.invoke('analyze-course', { body: { text, files, config } })
+    );
+    if (result.error) throw result.error;
+    return result.data;
+  } catch (err) {
+    console.warn('Edge Function failed, falling back to direct:', err);
+    return await analyzeCourseContentDirect(text, files, config);
+  }
+}
+```
 
-### Migration Map
+### Remaining Migration Work
 
-| Current (geminiService.ts) | New (supabaseClient.ts) | Edge Function |
-|---------------------------|-------------------------|---------------|
-| `analyzeCourseContent()` | `analyzeContent()` | `analyze-course` |
-| `performRegulatoryUpdate()` | `getRegulatoryUpdates()` | `regulatory-update` |
-| `performVisualTransformation()` | `getVisualTransformations()` | `visual-transform` |
-| `generateAsset()` | `generateAsset()` | `generate-asset` |
-| `identifyLocalAuthority()` | Call edge function directly | `jurisdiction-lookup` |
-| `generateDemoSlides()` | Call edge function directly | `demo-slides` |
+### DONE: Edge Function Routing (Day 5)
 
-### Steps for Integration Layer
+All 7 Gemini functions in `geminiService.ts` now route through Edge Functions first with direct fallback:
+- `analyzeCourseContent` → `analyze-course`
+- `performRegulatoryUpdate` → `regulatory-update`
+- `performVisualTransformation` → `visual-transform`
+- `generateAsset` → `generate-asset`
+- `identifyLocalAuthority` → `jurisdiction-lookup`
+- `generateDemoSlides` → `demo-slides`
+- `generateDemoSlidesEnhanced` → `demo-slides` (with enhanced params)
 
-1. **Replace imports** in components:
-   ```typescript
-   // OLD - exposes API key
-   import { analyzeCourseContent } from '../services/geminiService';
+Components still import from `geminiService.ts` — the routing is transparent.
 
-   // NEW - secure via edge functions
-   import { analyzeContent } from '../services/supabaseClient';
-   ```
+### Still TODO
 
-2. **Add authentication** - Components need user auth before calling protected edge functions:
-   ```typescript
-   import { supabase, getCurrentUser } from '../services/supabaseClient';
-   ```
-
-3. **Update components that use Gemini**:
-   - `DiagnosisDashboard.tsx` → use `analyzeContent()`
-   - `RegulatoryView.tsx` → use `getRegulatoryUpdates()`
-   - `VisualView.tsx` → use `getVisualTransformations()`
-   - `DemoFlow.tsx` → call `demo-slides` edge function
-   - Any image generation → use `generateAsset()`
-
-4. **Add project persistence** - Save/load projects from Supabase:
-   ```typescript
-   import { createProject, getProjects, updateProject } from '../services/supabaseClient';
-   ```
-
-5. **Use Supabase Storage** for file uploads instead of base64 in memory:
-   ```typescript
-   import { uploadFile, getProjectFiles } from '../services/supabaseClient';
-   ```
-
-6. **After migration complete**, remove `GEMINI_API_KEY` from `.env.local` - it now lives only in Supabase secrets.
+1. **Remove `GEMINI_API_KEY` from `.env.local`** after confirming all Edge Functions work reliably
+2. **Add project persistence** — Save/load projects from Supabase DB
+3. **Use Supabase Storage** for file uploads instead of base64 in memory
 
 ### Environment Variables After Migration
 

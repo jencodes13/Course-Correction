@@ -84,9 +84,9 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles) return;
 
-    Array.from(uploadedFiles).forEach(file => {
+    Array.from(uploadedFiles).forEach((file: File) => {
       const reader = new FileReader();
-      reader.onload = (res) => {
+      reader.onload = (res: ProgressEvent<FileReader>) => {
         const newFile: IngestedFile = {
           name: file.name,
           type: file.type,
@@ -198,7 +198,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
         <div
           key={i}
           className={`h-2 flex-1 mx-1 rounded-full transition-all duration-300 ${
-            currentProgress > i ? 'bg-indigo-600' : 'bg-slate-200'
+            currentProgress > i ? 'bg-accent' : 'bg-surface-border'
           }`}
         />
       ))}
@@ -208,10 +208,10 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // --- STEP 1: Update Mode Selection ---
   if (step === 1) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="w-full max-w-lg bg-white p-8 rounded-3xl shadow-xl">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg bg-card p-8 rounded-3xl shadow-xl border border-surface-border">
           <h2 className="text-2xl font-bold text-center mb-2">What do you need?</h2>
-          <p className="text-slate-500 text-center mb-8">
+          <p className="text-text-muted text-center mb-8">
             Choose how you'd like to update your course materials.
           </p>
 
@@ -220,19 +220,19 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
               onClick={() => setUpdateMode('regulatory')}
               className={`w-full p-6 rounded-2xl border-2 text-left transition-all ${
                 updateMode === 'regulatory'
-                  ? 'border-indigo-600 bg-indigo-50'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-accent bg-accent/10'
+                  : 'border-surface-border hover:border-accent/30'
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-xl ${
-                  updateMode === 'regulatory' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                  updateMode === 'regulatory' ? 'bg-accent text-white' : 'bg-surface text-text-muted'
                 }`}>
                   <Search className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-slate-900">Regulatory Update</h3>
-                  <p className="text-slate-500 text-sm mt-1">
+                  <h3 className="font-bold text-lg text-text-primary">Regulatory Update</h3>
+                  <p className="text-text-muted text-sm mt-1">
                     Fact-check regulations, update compliance info, add citations
                   </p>
                 </div>
@@ -243,19 +243,19 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
               onClick={() => setUpdateMode('visual')}
               className={`w-full p-6 rounded-2xl border-2 text-left transition-all ${
                 updateMode === 'visual'
-                  ? 'border-indigo-600 bg-indigo-50'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-accent bg-accent/10'
+                  : 'border-surface-border hover:border-accent/30'
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-xl ${
-                  updateMode === 'visual' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                  updateMode === 'visual' ? 'bg-accent text-white' : 'bg-surface text-text-muted'
                 }`}>
                   <Palette className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-slate-900">Visual Update</h3>
-                  <p className="text-slate-500 text-sm mt-1">
+                  <h3 className="font-bold text-lg text-text-primary">Visual Update</h3>
+                  <p className="text-text-muted text-sm mt-1">
                     Modernize design, improve layouts, enhance engagement
                   </p>
                 </div>
@@ -266,19 +266,19 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
               onClick={() => setUpdateMode('full')}
               className={`w-full p-6 rounded-2xl border-2 text-left transition-all ${
                 updateMode === 'full'
-                  ? 'border-indigo-600 bg-indigo-50'
-                  : 'border-slate-200 hover:border-slate-300'
+                  ? 'border-accent bg-accent/10'
+                  : 'border-surface-border hover:border-accent/30'
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-xl ${
-                  updateMode === 'full' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                  updateMode === 'full' ? 'bg-accent text-white' : 'bg-surface text-text-muted'
                 }`}>
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-slate-900">Full Refresh</h3>
-                  <p className="text-slate-500 text-sm mt-1">
+                  <h3 className="font-bold text-lg text-text-primary">Full Refresh</h3>
+                  <p className="text-text-muted text-sm mt-1">
                     Complete overhaul — regulations + visual modernization
                   </p>
                 </div>
@@ -289,12 +289,12 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
           <button
             onClick={nextStep}
             disabled={!canProceed()}
-            className="w-full mt-8 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            className="w-full mt-8 bg-accent text-background py-4 rounded-xl font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             Continue <ArrowRight className="w-4 h-4" />
           </button>
 
-          <button onClick={onBack} className="w-full mt-4 text-sm text-slate-400 hover:text-slate-600">
+          <button onClick={onBack} className="w-full mt-4 text-sm text-text-muted hover:text-text-primary">
             Cancel
           </button>
         </div>
@@ -305,17 +305,17 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // --- STEP 2: Upload Content ---
   if (step === 2) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="w-full max-w-lg bg-white p-8 rounded-3xl shadow-xl">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg bg-card p-8 rounded-3xl shadow-xl border border-surface-border">
           {renderProgressBar()}
           <h2 className="text-2xl font-bold text-center mb-2">Upload your materials</h2>
-          <p className="text-slate-500 text-center mb-8">
+          <p className="text-text-muted text-center mb-8">
             Add documents or describe your topic. We'll analyze them next.
           </p>
 
           <div className="space-y-6">
             {/* File Upload Zone */}
-            <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors relative">
+            <div className="border-2 border-dashed border-surface-border rounded-xl p-8 text-center hover:bg-surface transition-colors relative">
               <input
                 type="file"
                 className="absolute inset-0 opacity-0 cursor-pointer"
@@ -323,7 +323,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 accept=".pdf,.png,.jpg,.jpeg,.pptx,.docx"
                 multiple
               />
-              <div className="flex flex-col items-center text-slate-400">
+              <div className="flex flex-col items-center text-text-muted">
                 <Upload className="w-8 h-8 mb-2" />
                 <span className="font-medium">Drop files here or click to upload</span>
                 <span className="text-xs mt-1">PDF, Images, PPTX, DOCX</span>
@@ -336,17 +336,17 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 {files.map((file, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3"
+                    className="flex items-center justify-between bg-surface rounded-lg px-4 py-3"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-indigo-600" />
-                      <span className="text-sm font-medium text-slate-700 truncate max-w-[200px]">
+                      <FileText className="w-5 h-5 text-accent" />
+                      <span className="text-sm font-medium text-text-primary truncate max-w-[200px]">
                         {file.name}
                       </span>
                     </div>
                     <button
                       onClick={() => removeFile(idx)}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
+                      className="text-text-muted hover:text-warning transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -357,29 +357,29 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
             {/* Topic Input */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Topic / Subject {files.length > 0 && <span className="font-normal text-slate-400">(optional)</span>}
+              <label className="block text-sm font-semibold text-text-primary mb-2">
+                Topic / Subject {files.length > 0 && <span className="font-normal text-text-muted">(optional)</span>}
               </label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="e.g. Residential Plumbing Safety, Forklift Operation"
-                className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full border border-surface-border rounded-xl px-4 py-3 focus:ring-2 focus:ring-accent outline-none bg-card text-text-primary placeholder:text-text-muted"
               />
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={prevStep}
-                className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-surface text-text-primary py-4 rounded-xl font-bold hover:bg-surface transition-all flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
               <button
                 onClick={nextStep}
                 disabled={!canProceed()}
-                className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-accent text-background py-4 rounded-xl font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
               >
                 Analyze <ArrowRight className="w-4 h-4" />
               </button>
@@ -393,54 +393,54 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // --- STEP 3: Confirm Sector & Location ---
   if (step === 3) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="w-full max-w-lg bg-white p-8 rounded-3xl shadow-xl">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg bg-card p-8 rounded-3xl shadow-xl border border-surface-border">
           {renderProgressBar()}
           <h2 className="text-2xl font-bold text-center mb-2">Confirm details</h2>
-          <p className="text-slate-500 text-center mb-8">
+          <p className="text-text-muted text-center mb-8">
             We've analyzed your content. Verify we got it right.
           </p>
 
           {isInferring ? (
             <div className="flex flex-col items-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-4" />
-              <p className="text-slate-500">Analyzing your content...</p>
+              <Loader2 className="w-8 h-8 animate-spin text-accent mb-4" />
+              <p className="text-text-muted">Analyzing your content...</p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Sector Selection */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-text-primary mb-2">
                   Industry Sector
                 </label>
 
                 {inferredSector && (
                   <div className={`mb-3 p-3 rounded-lg flex items-start gap-3 ${
                     inferredSector.isAmbiguous
-                      ? 'bg-amber-50 border border-amber-200'
+                      ? 'bg-warning/10 border border-warning/20'
                       : inferredSector.confidence === 'high'
-                        ? 'bg-green-50 border border-green-200'
-                        : 'bg-blue-50 border border-blue-200'
+                        ? 'bg-success/10 border border-success/20'
+                        : 'bg-accent/10 border border-accent/20'
                   }`}>
                     {inferredSector.isAmbiguous ? (
-                      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
                     ) : (
                       <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${
-                        inferredSector.confidence === 'high' ? 'text-green-600' : 'text-blue-600'
+                        inferredSector.confidence === 'high' ? 'text-success' : 'text-accent'
                       }`} />
                     )}
                     <div className="text-sm">
                       <p className={`font-medium ${
-                        inferredSector.isAmbiguous ? 'text-amber-800' : 'text-slate-700'
+                        inferredSector.isAmbiguous ? 'text-warning' : 'text-text-primary'
                       }`}>
                         {inferredSector.isAmbiguous
                           ? 'Multiple topics detected — please confirm the primary focus'
                           : `Detected: ${inferredSector.sector} (${inferredSector.confidence} confidence)`
                         }
                       </p>
-                      <p className="text-slate-500 mt-1">{inferredSector.reasoning}</p>
+                      <p className="text-text-muted mt-1">{inferredSector.reasoning}</p>
                       {inferredSector.detectedTopics && inferredSector.detectedTopics.length > 0 && (
-                        <p className="text-slate-400 mt-1 text-xs">
+                        <p className="text-text-muted mt-1 text-xs">
                           Topics found: {inferredSector.detectedTopics.join(', ')}
                         </p>
                       )}
@@ -452,24 +452,24 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                   <select
                     value={selectedSector}
                     onChange={(e) => setSelectedSector(e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-4 py-3 appearance-none focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                    className="w-full border border-surface-border rounded-xl px-4 py-3 appearance-none focus:ring-2 focus:ring-accent outline-none bg-card text-text-primary"
                   >
                     <option value="">Select a sector...</option>
                     {SECTORS.map(sector => (
                       <option key={sector} value={sector}>{sector}</option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted pointer-events-none" />
                 </div>
 
                 {inferredSector?.alternatives && inferredSector.alternatives.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="text-xs text-slate-400">Also consider:</span>
+                    <span className="text-xs text-text-muted">Also consider:</span>
                     {inferredSector.alternatives.map(alt => (
                       <button
                         key={alt}
                         onClick={() => setSelectedSector(alt)}
-                        className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                        className="text-xs px-2 py-1 rounded-full bg-surface text-text-muted hover:bg-surface transition-colors"
                       >
                         {alt}
                       </button>
@@ -480,7 +480,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
               {/* Location Input */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-text-primary mb-2">
                   Target Location
                 </label>
                 <LocationInput
@@ -488,13 +488,13 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                   onChange={setLocation}
                   placeholder="e.g. Austin, TX or United Kingdom"
                 />
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-text-muted mt-2">
                   We'll search for regulations specific to this region.
                 </p>
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg text-warning text-sm">
                   {error}
                 </div>
               )}
@@ -502,14 +502,14 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
               <div className="flex gap-3">
                 <button
                   onClick={prevStep}
-                  className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 bg-surface text-text-primary py-4 rounded-xl font-bold hover:bg-surface transition-all flex items-center justify-center gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" /> Back
                 </button>
                 <button
                   onClick={nextStep}
                   disabled={!canProceed() || isProcessing}
-                  className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  className="flex-1 bg-accent text-background py-4 rounded-xl font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
                     <>
@@ -536,11 +536,11 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // --- STEP 4: Style Selection (Visual/Full only) ---
   if (step === 4) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="w-full max-w-lg bg-white p-8 rounded-3xl shadow-xl">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg bg-card p-8 rounded-3xl shadow-xl border border-surface-border">
           {renderProgressBar()}
           <h2 className="text-2xl font-bold text-center mb-2">Choose a style</h2>
-          <p className="text-slate-500 text-center mb-8">
+          <p className="text-text-muted text-center mb-8">
             Set the visual direction for your modernized slides.
           </p>
 
@@ -551,21 +551,21 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 onClick={() => setStyle(s.id)}
                 className={`p-4 rounded-xl border-2 text-left transition-all ${
                   style === s.id
-                    ? 'border-indigo-600 bg-indigo-50'
-                    : 'border-slate-100 hover:border-slate-200'
+                    ? 'border-accent bg-accent/10'
+                    : 'border-surface-border hover:border-surface-border'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Palette className={`w-5 h-5 ${
-                    style === s.id ? 'text-indigo-600' : 'text-slate-400'
+                    style === s.id ? 'text-accent' : 'text-text-muted'
                   }`} />
                   <div>
                     <span className={`font-semibold ${
-                      style === s.id ? 'text-indigo-700' : 'text-slate-600'
+                      style === s.id ? 'text-accent' : 'text-text-muted'
                     }`}>
                       {s.label}
                     </span>
-                    <p className="text-xs text-slate-400 mt-0.5">{s.description}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{s.description}</p>
                   </div>
                 </div>
               </button>
@@ -573,7 +573,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg text-warning text-sm">
               {error}
             </div>
           )}
@@ -581,14 +581,14 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
           <div className="flex gap-3">
             <button
               onClick={prevStep}
-              className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+              className="flex-1 bg-surface text-text-primary py-4 rounded-xl font-bold hover:bg-surface transition-all flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
             <button
               onClick={handleGenerate}
               disabled={isProcessing}
-              className="flex-1 bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30"
+              className="flex-1 bg-accent text-white py-4 rounded-xl font-bold hover:bg-accent/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/30"
             >
               {isProcessing ? (
                 <>
@@ -609,20 +609,20 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // --- STEP 5: Results - Before/After Split View ---
   if (step === 5 && result) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-6 overflow-y-auto">
+      <div className="min-h-screen bg-background text-text-primary p-6 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-start mb-10 pt-4">
             <div>
               <h2 className="text-3xl font-bold">Your Course Transformation</h2>
-              <p className="text-slate-400 mt-1">
+              <p className="text-text-muted mt-1">
                 {result.metadata.sector} • {result.metadata.location} • {
                   result.metadata.updateMode === 'regulatory' ? 'Regulatory Update' :
                   result.metadata.updateMode === 'visual' ? 'Visual Update' : 'Full Refresh'
                 }
               </p>
               {result.metadata.searchQueries.length > 0 && (
-                <p className="text-slate-500 text-sm mt-2">
+                <p className="text-text-muted text-sm mt-2">
                   <Search className="w-3 h-3 inline mr-1" />
                   Searched: {result.metadata.searchQueries.slice(0, 2).join(', ')}
                 </p>
@@ -640,7 +640,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                   setSelectedSector('');
                   setLocation('');
                 }}
-                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                className="bg-surface hover:bg-card text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" /> Start Over
               </button>
@@ -652,7 +652,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
             {result.slides.map((slide, idx) => (
               <div
                 key={slide.id}
-                className="bg-white rounded-2xl overflow-hidden shadow-2xl"
+                className="bg-card rounded-2xl overflow-hidden shadow-2xl border border-surface-border"
               >
                 {/* Slide Header */}
                 <div
@@ -666,23 +666,23 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 {/* Before / After Split */}
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* BEFORE */}
-                  <div className="p-8 bg-slate-100 border-r border-slate-200">
+                  <div className="p-8 bg-surface border-r border-surface-border">
                     <div className="flex items-center gap-2 mb-4">
-                      <span className="px-3 py-1 bg-slate-300 text-slate-700 rounded-full text-xs font-bold uppercase">
+                      <span className="px-3 py-1 bg-surface-border text-text-primary rounded-full text-xs font-bold uppercase">
                         Before
                       </span>
-                      <span className="text-slate-400 text-xs">Original Content</span>
+                      <span className="text-text-muted text-xs">Original Content</span>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-700 mb-4 opacity-70">
+                    <h3 className="text-lg font-bold text-text-primary mb-4 opacity-70">
                       {slide.before.title}
                     </h3>
                     <ul className="space-y-3">
                       {slide.before.bullets.map((bullet, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-3 text-slate-500"
+                          className="flex items-start gap-3 text-text-muted"
                         >
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-2 shrink-0" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-text-muted mt-2 shrink-0" />
                           <span className="line-through opacity-60">{bullet}</span>
                         </li>
                       ))}
@@ -690,7 +690,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                   </div>
 
                   {/* AFTER */}
-                  <div className="p-8 bg-white">
+                  <div className="p-8 bg-card">
                     <div className="flex items-center gap-2 mb-4">
                       <span
                         className="px-3 py-1 rounded-full text-xs font-bold uppercase text-white"
@@ -698,7 +698,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                       >
                         After
                       </span>
-                      <span className="text-slate-400 text-xs">Updated Content</span>
+                      <span className="text-text-muted text-xs">Updated Content</span>
                     </div>
                     <h3
                       className="text-lg font-bold mb-4"
@@ -710,7 +710,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                       {slide.after.bullets.map((bullet, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-3 text-slate-700"
+                          className="flex items-start gap-3 text-text-primary"
                         >
                           <div
                             className="w-1.5 h-1.5 rounded-full mt-2 shrink-0"
@@ -728,9 +728,9 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
           {/* Citations Panel */}
           {result.citations.length > 0 && (
-            <div className="mt-12 bg-slate-800 rounded-2xl p-8">
+            <div className="mt-12 bg-card rounded-2xl p-8">
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <ExternalLink className="w-5 h-5 text-indigo-400" />
+                <ExternalLink className="w-5 h-5 text-accent" />
                 Sources & Citations
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -740,28 +740,28 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                     href={citation.url !== '#' ? citation.url : undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`flex items-start gap-3 p-4 bg-slate-700/50 rounded-xl transition-colors group ${
-                      citation.url !== '#' ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'
+                    className={`flex items-start gap-3 p-4 bg-surface rounded-xl transition-colors group ${
+                      citation.url !== '#' ? 'hover:bg-card cursor-pointer' : 'cursor-default'
                     }`}
                   >
-                    <span className="flex items-center justify-center w-6 h-6 bg-indigo-600 text-white rounded-full text-xs font-bold shrink-0">
+                    <span className="flex items-center justify-center w-6 h-6 bg-accent text-white rounded-full text-xs font-bold shrink-0">
                       {citation.id}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white group-hover:text-indigo-300 transition-colors truncate">
+                      <p className="font-medium text-white group-hover:text-accent transition-colors truncate">
                         {citation.title}
                       </p>
                       {citation.snippet && (
-                        <p className="text-slate-400 text-sm mt-1 line-clamp-2">
+                        <p className="text-text-muted text-sm mt-1 line-clamp-2">
                           {citation.snippet}
                         </p>
                       )}
-                      <p className="text-slate-500 text-xs mt-1">
+                      <p className="text-text-muted text-xs mt-1">
                         Accessed {citation.accessedDate}
                       </p>
                     </div>
                     {citation.url !== '#' && (
-                      <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 shrink-0" />
+                      <ExternalLink className="w-4 h-4 text-text-muted group-hover:text-accent shrink-0" />
                     )}
                   </a>
                 ))}
@@ -772,11 +772,11 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
           {/* CTA */}
           <div className="mt-16 text-center max-w-2xl mx-auto pb-12">
             <h3 className="text-2xl font-bold mb-4">Ready for the full transformation?</h3>
-            <p className="text-slate-400 mb-8">
+            <p className="text-text-muted mb-8">
               This was just a preview. CourseCorrect can analyze entire course libraries,
               generate interactive quizzes, and export to SCORM/xAPI packages.
             </p>
-            <button className="bg-indigo-500 hover:bg-indigo-400 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-indigo-500/25 transition-all transform hover:scale-105">
+            <button className="bg-accent hover:bg-accent/90 text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg shadow-accent/25 transition-all transform hover:scale-105">
               Unlock Full Access — $49/mo
             </button>
           </div>
@@ -787,8 +787,8 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
   // Fallback / Loading
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="w-8 h-8 animate-spin text-accent" />
     </div>
   );
 };

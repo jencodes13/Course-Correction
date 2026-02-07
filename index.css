@@ -4,14 +4,14 @@
 
 @layer base {
   body {
-    @apply bg-background font-sans;
+    @apply bg-background font-sans text-text-primary;
   }
   h1, h2, h3, h4, h5, h6, button {
     @apply font-heading;
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - dark warm theme */
 @layer utilities {
   .scrollbar-sleek {
     scrollbar-width: thin;
@@ -22,14 +22,14 @@
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #1a1914;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: rgba(255,248,230,0.15);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: rgba(255,248,230,0.25);
 }
 
 /* Floating card shadow utilities */

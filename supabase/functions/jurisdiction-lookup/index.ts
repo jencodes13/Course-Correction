@@ -43,13 +43,13 @@ Focus on official government bodies that enforce regulations in this area.`;
 
     // Call Gemini with Maps grounding
     const result = await callGeminiWithMapsGrounding(
-      "gemini-2.5-flash-preview-05-20",
+      "gemini-3-flash-preview",
       prompt,
       systemInstruction
     );
 
     // Track API usage
-    await trackApiUsage(auth.userId, "jurisdiction-lookup", "gemini-2.5-flash");
+    await trackApiUsage(auth.userId, "jurisdiction-lookup", "gemini-3-flash-preview");
 
     // Parse the result to extract key information
     return jsonResponse({

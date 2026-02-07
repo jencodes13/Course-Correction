@@ -14,6 +14,7 @@ import {
   DemoSlideEnhanced
 } from "../types";
 import { recordUsage } from "./usageTracker";
+import { supabase } from "./supabaseClient";
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
@@ -43,22 +44,58 @@ function trackUsage(response: any, model: string, functionName: string, startTim
 }
 
 /**
- * 1. Multimodal Analysis (Text + Images + Video)
- * Uses gemini-3-pro-preview for deep understanding of complex inputs.
+ * Retry wrapper with exponential backoff for Edge Function calls.
+ * Only retries on network errors and 5xx server errors, not 4xx client errors.
  */
-export const analyzeCourseContent = async (text: string, files: IngestedFile[], config: ProjectConfig): Promise<AnalysisMetrics> => {
+async function withRetry<T>(
+  fn: () => Promise<{ data: T; error: any }>,
+  maxRetries: number = 2,
+  baseDelay: number = 1000
+): Promise<{ data: T; error: any }> {
+  let lastResult: { data: T; error: any } = { data: null as T, error: null };
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      lastResult = await fn();
+
+      if (!lastResult.error) return lastResult;
+
+      // Don't retry 4xx auth/client errors
+      const status = lastResult.error?.status || lastResult.error?.context?.status;
+      if (status && status >= 400 && status < 500) return lastResult;
+
+      // Retryable error -- wait with exponential backoff before next attempt
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    } catch (err) {
+      // Network-level error (fetch failed, timeout, etc.) -- retryable
+      lastResult = { data: null as T, error: err };
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  return lastResult;
+}
+
+// ============================================
+// 1. Multimodal Analysis (Text + Images + Video)
+// ============================================
+
+async function analyzeCourseContentDirect(text: string, files: IngestedFile[], config: ProjectConfig): Promise<AnalysisMetrics> {
   const startTime = Date.now();
   const model = 'gemini-3-pro-preview';
 
   try {
     const parts: any[] = [];
 
-    // Add Text
     if (text) parts.push({ text: `Course Text Content: ${text}` });
 
-    // Add Files (Images/Video)
     files.forEach(file => {
-      // Remove data URL prefix for API
       const base64Data = file.data.split(',')[1];
       parts.push({
         inlineData: {
@@ -82,7 +119,6 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
       Provide a summary.
     `;
 
-    // gemini-3-pro-preview is required for Video Understanding and Complex Image Analysis
     const response = await ai.models.generateContent({
       model,
       contents: {
@@ -121,13 +157,26 @@ export const analyzeCourseContent = async (text: string, files: IngestedFile[], 
       summary: "Error during AI analysis. Please verify API key and file types."
     };
   }
+}
+
+export const analyzeCourseContent = async (text: string, files: IngestedFile[], config: ProjectConfig): Promise<AnalysisMetrics> => {
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('analyze-course', { body: { text, files, config } })
+    );
+    if (error) throw error;
+    return data as AnalysisMetrics;
+  } catch (err) {
+    console.warn('Edge Function analyze-course failed, falling back to direct:', err);
+    return analyzeCourseContentDirect(text, files, config);
+  }
 };
 
-/**
- * 2. Maps Grounding (Authority Identification)
- * Uses gemini-2.5-flash to find the correct local authority.
- */
-export const identifyLocalAuthority = async (location: string): Promise<string> => {
+// ============================================
+// 2. Maps Grounding (Authority Identification)
+// ============================================
+
+async function identifyLocalAuthorityDirect(location: string): Promise<string> {
   if (!location) return "General Federal Standards";
 
   const startTime = Date.now();
@@ -144,24 +193,37 @@ export const identifyLocalAuthority = async (location: string): Promise<string> 
 
     trackUsage(response, model, 'identifyLocalAuthority', startTime);
 
-    // Extract text directly, maps grounding chunks are usually appended or referenced
     return response.text || location;
   } catch (e) {
     console.error("Maps Grounding Error", e);
     return location;
   }
+}
+
+export const identifyLocalAuthority = async (location: string): Promise<string> => {
+  if (!location) return "General Federal Standards";
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('jurisdiction-lookup', { body: { location } })
+    );
+    if (error) throw error;
+    return (data as any)?.authority || (data as any)?.result || location;
+  } catch (err) {
+    console.warn('Edge Function jurisdiction-lookup failed, falling back to direct:', err);
+    return identifyLocalAuthorityDirect(location);
+  }
 };
 
-/**
- * 3. Search Grounding (Regulatory Update)
- * Uses gemini-3-flash-preview with Google Search to get live facts.
- */
-export const performRegulatoryUpdate = async (content: string, domainContext: string, location: string): Promise<RegulatoryUpdate[]> => {
+// ============================================
+// 3. Search Grounding (Regulatory Update)
+// ============================================
+
+async function performRegulatoryUpdateDirect(content: string, domainContext: string, location: string): Promise<RegulatoryUpdate[]> {
   const startTime = Date.now();
   const model = 'gemini-3-flash-preview';
 
   try {
-    // First, try to get local context if a location is provided
     let localAuthority = domainContext;
     if (location) {
         const auth = await identifyLocalAuthority(location);
@@ -187,14 +249,12 @@ export const performRegulatoryUpdate = async (content: string, domainContext: st
 
     trackUsage(response, model, 'performRegulatoryUpdate', startTime);
 
-    // Clean up response text to find JSON
     const text = response.text || "[]";
     const jsonMatch = text.match(/\[.*\]/s);
     if (jsonMatch) {
         return JSON.parse(jsonMatch[0]) as RegulatoryUpdate[];
     }
 
-    // Fallback if search results break JSON structure
     return [{
         id: "1",
         originalText: "Content analysis",
@@ -207,20 +267,33 @@ export const performRegulatoryUpdate = async (content: string, domainContext: st
     console.error("Regulatory Search Error:", error);
     return [];
   }
+}
+
+export const performRegulatoryUpdate = async (content: string, domainContext: string, location: string): Promise<RegulatoryUpdate[]> => {
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('regulatory-update', { body: { content, domainContext, location } })
+    );
+    if (error) throw error;
+    if (Array.isArray(data)) return data as RegulatoryUpdate[];
+    return (data as any)?.updates || [];
+  } catch (err) {
+    console.warn('Edge Function regulatory-update failed, falling back to direct:', err);
+    return performRegulatoryUpdateDirect(content, domainContext, location);
+  }
 };
 
-/**
- * 4. Image Generation / Editing
- * Uses gemini-2.5-flash-image (Nano Banana).
- */
-export const generateAsset = async (prompt: string, base64Image?: string): Promise<string | null> => {
+// ============================================
+// 4. Image Generation / Editing
+// ============================================
+
+async function generateAssetDirect(prompt: string, base64Image?: string): Promise<string | null> {
     const startTime = Date.now();
     const model = 'gemini-2.5-flash-image';
 
     try {
         const parts: any[] = [];
 
-        // If editing an existing image
         if (base64Image) {
             parts.push({
                 inlineData: {
@@ -230,7 +303,6 @@ export const generateAsset = async (prompt: string, base64Image?: string): Promi
             });
             parts.push({ text: `Edit this image: ${prompt}` });
         } else {
-            // If generating from scratch
             parts.push({ text: `Generate an image: ${prompt}` });
         }
 
@@ -241,7 +313,6 @@ export const generateAsset = async (prompt: string, base64Image?: string): Promi
 
         trackUsage(response, model, 'generateAsset', startTime);
 
-        // Extract image from response
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
                 return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
@@ -253,12 +324,26 @@ export const generateAsset = async (prompt: string, base64Image?: string): Promi
         console.error("Image Gen Error", e);
         return null;
     }
+}
+
+export const generateAsset = async (prompt: string, base64Image?: string): Promise<string | null> => {
+    try {
+        const { data, error } = await withRetry(() =>
+            supabase.functions.invoke('generate-asset', { body: { prompt, baseImage: base64Image } })
+        );
+        if (error) throw error;
+        return (data as any)?.imageUrl || (data as any)?.image || null;
+    } catch (err) {
+        console.warn('Edge Function generate-asset failed, falling back to direct:', err);
+        return generateAssetDirect(prompt, base64Image);
+    }
 };
 
-/**
- * Visual Analysis
- */
-export const performVisualTransformation = async (content: string, theme: string): Promise<VisualTransformation[]> => {
+// ============================================
+// 5. Visual Analysis
+// ============================================
+
+async function performVisualTransformationDirect(content: string, theme: string): Promise<VisualTransformation[]> {
     const startTime = Date.now();
     const model = 'gemini-3-flash-preview';
 
@@ -291,13 +376,27 @@ export const performVisualTransformation = async (content: string, theme: string
     } catch (e) {
         return [];
     }
+}
+
+export const performVisualTransformation = async (content: string, theme: string): Promise<VisualTransformation[]> => {
+    try {
+        const { data, error } = await withRetry(() =>
+            supabase.functions.invoke('visual-transform', { body: { content, theme } })
+        );
+        if (error) throw error;
+        if (Array.isArray(data)) return data as VisualTransformation[];
+        return (data as any)?.transformations || [];
+    } catch (err) {
+        console.warn('Edge Function visual-transform failed, falling back to direct:', err);
+        return performVisualTransformationDirect(content, theme);
+    }
 };
 
-/**
- * 5. Demo Slide Generation
- * Generates 3 initial slides for the free trial flow.
- */
-export const generateDemoSlides = async (topic: string, location: string, style: string, fileData?: string): Promise<DemoSlide[]> => {
+// ============================================
+// 6. Demo Slide Generation
+// ============================================
+
+async function generateDemoSlidesDirect(topic: string, location: string, style: string, fileData?: string): Promise<DemoSlide[]> {
   const startTime = Date.now();
   const model = 'gemini-3-flash-preview';
 
@@ -361,7 +460,6 @@ export const generateDemoSlides = async (topic: string, location: string, style:
 
   } catch (error) {
       console.error("Demo Gen Error", error);
-      // Fallback
       return [
           {
               title: "Welcome to " + topic,
@@ -383,13 +481,26 @@ export const generateDemoSlides = async (topic: string, location: string, style:
           }
       ];
   }
+}
+
+export const generateDemoSlides = async (topic: string, location: string, style: string, fileData?: string): Promise<DemoSlide[]> => {
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', { body: { topic, location, style, fileData } })
+    );
+    if (error) throw error;
+    if (Array.isArray(data)) return data as DemoSlide[];
+    return (data as any)?.slides || [];
+  } catch (err) {
+    console.warn('Edge Function demo-slides failed, falling back to direct:', err);
+    return generateDemoSlidesDirect(topic, location, style, fileData);
+  }
 };
 
-/**
- * 6. Landing Page Use Case Generator
- * Generates creative use cases for the infinite grid.
- * Uses gemini-3-flash-preview for low latency.
- */
+// ============================================
+// 7. Landing Page Use Case Generator (direct only)
+// ============================================
+
 export const generateCreativeUseCases = async (batchSize: number = 8): Promise<GeneratedUseCase[]> => {
     const startTime = Date.now();
     const model = 'gemini-3-flash-preview';
@@ -445,11 +556,10 @@ export const generateCreativeUseCases = async (batchSize: number = 8): Promise<G
     }
 }
 
-/**
- * 7. Sector Inference from Content
- * Analyzes uploaded files and/or topic to determine the industry sector.
- * Returns confidence level and flags ambiguity if multiple sectors detected.
- */
+// ============================================
+// 8. Sector Inference from Content (direct only)
+// ============================================
+
 export const inferSectorFromContent = async (
   topic: string,
   files: IngestedFile[]
@@ -460,7 +570,6 @@ export const inferSectorFromContent = async (
   try {
     const parts: any[] = [];
 
-    // Add files for analysis
     files.forEach(file => {
       const base64Data = file.data.split(',')[1];
       parts.push({
@@ -561,25 +670,24 @@ export const inferSectorFromContent = async (
   }
 };
 
-/**
- * 8. Enhanced Demo Slide Generation with Search Grounding
- * Generates before/after slides with real regulatory citations from Google Search.
- */
-export const generateDemoSlidesEnhanced = async (
+// ============================================
+// 9. Enhanced Demo Slide Generation with Search Grounding
+// ============================================
+
+async function generateDemoSlidesEnhancedDirect(
   topic: string,
   sector: string,
   location: string,
   updateMode: UpdateMode,
   style: string,
   files: IngestedFile[]
-): Promise<DemoResult> => {
+): Promise<DemoResult> {
   const startTime = Date.now();
   const model = 'gemini-3-flash-preview';
 
   try {
     const parts: any[] = [];
 
-    // Add files for context
     files.forEach(file => {
       const base64Data = file.data.split(',')[1];
       parts.push({
@@ -590,7 +698,6 @@ export const generateDemoSlidesEnhanced = async (
       });
     });
 
-    // Build context-aware prompt based on update mode
     let modeInstructions = '';
     if (updateMode === 'regulatory' || updateMode === 'full') {
       modeInstructions += `
@@ -639,7 +746,6 @@ export const generateDemoSlidesEnhanced = async (
 
     parts.push({ text: prompt });
 
-    // Use search grounding to get real regulatory data
     const response = await ai.models.generateContent({
       model,
       contents: { parts },
@@ -650,7 +756,6 @@ export const generateDemoSlidesEnhanced = async (
 
     trackUsage(response, model, 'generateDemoSlidesEnhanced', startTime);
 
-    // Extract grounding metadata for citations
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
     const citations: Citation[] = [];
 
@@ -661,17 +766,15 @@ export const generateDemoSlidesEnhanced = async (
             id: idx + 1,
             title: chunk.web.title || `Source ${idx + 1}`,
             url: chunk.web.uri || '',
-            snippet: '', // Extracted from groundingSupports if available
+            snippet: '',
             accessedDate: new Date().toISOString().split('T')[0]
           });
         }
       });
     }
 
-    // Extract search queries used
     const searchQueries = groundingMetadata?.webSearchQueries || [];
 
-    // Parse the response text into structured slides
     const responseText = response.text || '';
     const slides = parseResponseToSlides(responseText, style);
 
@@ -689,25 +792,88 @@ export const generateDemoSlidesEnhanced = async (
 
   } catch (error) {
     console.error("Enhanced Demo Gen Error:", error);
-    // Return fallback with placeholder content
     return createFallbackDemoResult(topic, sector, location, updateMode, style);
+  }
+}
+
+export const generateDemoSlidesEnhanced = async (
+  topic: string,
+  sector: string,
+  location: string,
+  updateMode: UpdateMode,
+  style: string,
+  files: IngestedFile[]
+): Promise<DemoResult> => {
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic, sector, location, updateMode, style, files, enhanced: true }
+      })
+    );
+    if (error) throw error;
+    return data as DemoResult;
+  } catch (err) {
+    console.warn('Edge Function demo-slides (enhanced) failed, falling back to direct:', err);
+    return generateDemoSlidesEnhancedDirect(topic, sector, location, updateMode, style, files);
   }
 };
 
-/**
- * Helper: Parse free-form response into structured slides
- */
+// ============================================
+// Helper functions for slide parsing
+// ============================================
+
 function parseResponseToSlides(text: string, style: string): DemoSlideEnhanced[] {
-  // Try to extract structured content from the response
-  // The response may be semi-structured text, so we parse intelligently
+  // Try to parse as JSON first (Gemini sometimes returns structured JSON)
+  try {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        return parsed.slice(0, 3).map((item: any, idx: number) => ({
+          id: `slide-${idx + 1}`,
+          before: {
+            title: item.before?.title || item.originalTitle || `Section ${idx + 1} (Original)`,
+            bullets: item.before?.bullets || item.originalBullets || ['Original content'],
+            citationIds: []
+          },
+          after: {
+            title: item.after?.title || item.updatedTitle || `Section ${idx + 1} (Updated)`,
+            bullets: item.after?.bullets || item.updatedBullets || ['Updated content'],
+            citationIds: item.after?.citationIds || item.citationIds || []
+          },
+          changesSummary: item.changesSummary || item.summary || 'Updated with current information.',
+          visualStyle: {
+            accentColor: ['#4f46e5', '#0ea5e9', '#10b981'][idx % 3],
+            layout: 'split' as const
+          }
+        }));
+      }
+    }
+  } catch {
+    // Not valid JSON, fall through to text parsing
+  }
 
   const slides: DemoSlideEnhanced[] = [];
-  const slideRegex = /(?:slide\s*\d+|#{1,3}\s*slide)/gi;
-  const sections = text.split(slideRegex).filter(s => s.trim());
 
-  // If we can't parse, create structured placeholders
+  // Try multiple split patterns for different Gemini output formats
+  const splitPatterns = [
+    /(?:^|\n)#{1,3}\s*slide\s*\d+/gi,           // ### Slide 1
+    /(?:^|\n)#{1,3}\s*\d+[\.\)]/gi,              // ### 1. or ### 1)
+    /(?:^|\n)\*\*slide\s*\d+/gi,                  // **Slide 1
+    /(?:^|\n)slide\s*\d+\s*[:\-]/gi,             // Slide 1: or Slide 1 -
+    /(?:^|\n)---+/g,                              // --- separator lines
+  ];
+
+  let sections: string[] = [];
+  for (const pattern of splitPatterns) {
+    const result = text.split(pattern).filter(s => s.trim().length > 20);
+    if (result.length >= 3) {
+      sections = result;
+      break;
+    }
+  }
+
   if (sections.length < 3) {
-    // Fall back to creating 3 slides from the full text
     const chunks = splitIntoChunks(text, 3);
     chunks.forEach((chunk, idx) => {
       slides.push(createSlideFromText(chunk, idx, style));
@@ -734,31 +900,55 @@ function splitIntoChunks(text: string, count: number): string[] {
 }
 
 function createSlideFromText(text: string, index: number, style: string): DemoSlideEnhanced {
-  // Extract before/after content using common patterns
-  const beforeMatch = text.match(/(?:before|original|outdated|old)[:\s]*([\s\S]*?)(?:after|updated|new|current|$)/i);
-  const afterMatch = text.match(/(?:after|updated|new|current)[:\s]*([\s\S]*?)(?:before|$)/i);
+  // Try multiple before/after patterns
+  const beforePatterns = [
+    /(?:\*\*)?(?:before|original|outdated|old)(?:\*\*)?[:\s\-]*([\s\S]*?)(?=(?:\*\*)?(?:after|updated|new|current)(?:\*\*)?[:\s\-])/i,
+    /(?:^|\n)(?:before|original)[:\s]*([\s\S]*?)(?:\n\n)/i,
+  ];
+  const afterPatterns = [
+    /(?:\*\*)?(?:after|updated|new|current)(?:\*\*)?[:\s\-]*([\s\S]*?)(?=(?:\*\*)?(?:before|original|change|summary)|\s*$)/i,
+    /(?:^|\n)(?:after|updated)[:\s]*([\s\S]*?)$/i,
+  ];
 
-  // Extract bullet points
+  let beforeContent = '';
+  let afterContent = '';
+
+  for (const pattern of beforePatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]?.trim()) { beforeContent = match[1]; break; }
+  }
+  for (const pattern of afterPatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]?.trim()) { afterContent = match[1]; break; }
+  }
+
+  // Fallback: split the text in half
+  if (!beforeContent) beforeContent = text.slice(0, text.length / 2);
+  if (!afterContent) afterContent = text.slice(text.length / 2);
+
   const extractBullets = (content: string): string[] => {
-    const bullets = content.match(/[-•*]\s*([^\n]+)/g) || [];
+    // Match numbered lists (1., 2.) and bullet lists (-, *, •)
+    const bullets = content.match(/(?:^|\n)\s*(?:\d+[\.\)]\s*|[-•*]\s*)([^\n]+)/g) || [];
     if (bullets.length > 0) {
-      return bullets.map(b => b.replace(/^[-•*]\s*/, '').trim()).slice(0, 4);
+      return bullets
+        .map(b => b.replace(/^\s*(?:\d+[\.\)]\s*|[-•*]\s*)/, '').trim())
+        .filter(b => b.length > 5)
+        .slice(0, 4);
     }
     // Fall back to sentences
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
     return sentences.slice(0, 4).map(s => s.trim());
   };
 
-  // Extract citations from text [1], [2], etc.
-  const citationMatches = text.match(/\[(\d+)\]/g) || [];
-  const citationIds = [...new Set(citationMatches.map(m => parseInt(m.replace(/[\[\]]/g, ''))))];
+  // Extract citations from the "after" section only
+  const afterCitationMatches = afterContent.match(/\[(\d+)\]/g) || [];
+  const citationIds = [...new Set(afterCitationMatches.map(m => parseInt(m.replace(/[\[\]]/g, ''))))];
 
-  const beforeContent = beforeMatch?.[1] || text.slice(0, text.length / 2);
-  const afterContent = afterMatch?.[1] || text.slice(text.length / 2);
-
-  // Generate title from content
-  const titleMatch = text.match(/(?:^|\n)#+\s*([^\n]+)|(?:title|topic)[:\s]*([^\n]+)/i);
-  const title = titleMatch?.[1] || titleMatch?.[2] || `Section ${index + 1}`;
+  // Extract title: try markdown headers, bold text, or first meaningful line
+  const titleMatch = text.match(/(?:^|\n)#{1,3}\s*([^\n]+)/);
+  const boldTitleMatch = !titleMatch ? text.match(/\*\*([^*]{5,60})\*\*/) : null;
+  const firstLineMatch = !titleMatch && !boldTitleMatch ? text.match(/^([^\n]{5,60})/) : null;
+  const title = (titleMatch?.[1] || boldTitleMatch?.[1] || firstLineMatch?.[1] || `Section ${index + 1}`).replace(/[#*]/g, '').trim();
 
   const accentColors = ['#4f46e5', '#0ea5e9', '#10b981'];
 
@@ -859,7 +1049,6 @@ function createFallbackDemoResult(
 }
 
 // --- LIVE API CLIENT HELPER (Gemini 2.5 Native Audio) ---
-// We export the connect method to be used in the component
 export const connectLiveParams = {
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {

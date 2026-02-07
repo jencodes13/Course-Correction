@@ -100,7 +100,7 @@ Focus on:
       {
         systemInstruction: systemPrompt,
         responseSchema: SLIDES_SCHEMA,
-        temperature: 0.7,
+        // temperature: 1.0 is Gemini 3 default; lower values can cause looping
       }
     );
 

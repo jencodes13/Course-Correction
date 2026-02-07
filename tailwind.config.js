@@ -16,7 +16,15 @@ export default {
         jakarta: ['Plus Jakarta Sans', 'sans-serif'],
       },
       colors: {
-        background: '#f8fafc',
+        background: '#0c0b09',
+        card: '#1a1914',
+        surface: 'rgba(255,248,230,0.04)',
+        'surface-border': 'rgba(255,248,230,0.08)',
+        'text-primary': '#f5f0e0',
+        'text-muted': 'rgba(245,240,224,0.5)',
+        accent: '#c8956c',
+        success: '#6abf8a',
+        warning: '#c27056',
       },
       keyframes: {
         float: {

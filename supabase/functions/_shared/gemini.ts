@@ -136,21 +136,13 @@ export async function callGeminiWithMapsGrounding(
   prompt: string,
   systemInstruction?: string
 ): Promise<string> {
-  // Note: Maps grounding uses dynamic retrieval config
+  // Use Google Search grounding for location-based regulatory lookups
   return callGemini(
     model,
     [{ role: "user", parts: [{ text: prompt }] }],
     {
       systemInstruction,
-      tools: [
-        {
-          googleSearchRetrieval: {
-            dynamicRetrievalConfig: {
-              mode: "MODE_DYNAMIC",
-            },
-          },
-        },
-      ],
+      tools: [{ googleSearch: {} }],
     }
   );
 }
@@ -163,7 +155,7 @@ export async function generateImage(
     throw new Error("GEMINI_API_KEY environment variable is required");
   }
 
-  const url = `${GEMINI_BASE_URL}/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `${GEMINI_BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GEMINI_API_KEY}`;
 
   const parts: GeminiPart[] = [{ text: prompt }];
 
