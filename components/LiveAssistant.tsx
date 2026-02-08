@@ -35,7 +35,7 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({ onClose }) => {
         streamRef.current = stream;
 
         setStatus("Connecting to Gemini...");
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+        const ai = new GoogleGenAI({ apiKey: (import.meta.env.DEV && import.meta.env.VITE_GEMINI_API_KEY) || '' });
         
         // 1. Setup Audio Input
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });

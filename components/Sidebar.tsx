@@ -5,7 +5,7 @@ import { useWorkflow } from '../contexts/WorkflowContext';
 import { signOut } from '../services/supabaseClient';
 
 const Sidebar: React.FC = () => {
-  const { currentStep, goToStep, projectName, resetProject, setUser, setIsLiveActive } = useWorkflow();
+  const { currentStep, goToStep, projectName, resetProject, setUser, setIsLiveActive, user } = useWorkflow();
 
   const handleSignOut = async () => {
     try {
@@ -83,6 +83,11 @@ const Sidebar: React.FC = () => {
           <Mic className="w-4 h-4" />
           <span>Voice Consultant</span>
         </button>
+        {user && (
+          <div className="px-3 py-2 mb-1">
+            <p className="text-xs text-text-muted truncate" title={user.email}>{user.email}</p>
+          </div>
+        )}
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-3 py-2 text-sm text-text-muted hover:text-warning w-full hover:bg-surface rounded-md transition-colors"

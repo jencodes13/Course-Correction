@@ -93,7 +93,40 @@ export interface VisualTransformation {
 export interface IngestedFile {
   name: string;
   type: string;
-  data: string; // Base64
+  data?: string;         // Base64 data URL (small files, inline)
+  storagePath?: string;  // Supabase Storage path (large files)
+  sizeBytes?: number;    // File size for display/progress
+}
+
+export interface FileUploadProgress {
+  fileName: string;
+  progress: number;  // 0-100
+  status: 'uploading' | 'complete' | 'error';
+  error?: string;
+}
+
+export interface DriveDownloadProgress {
+  fileId: string;
+  fileName: string;
+  progress: number;    // 0-100
+  status: 'downloading' | 'complete' | 'error';
+  error?: string;
+}
+
+export interface CourseFinding {
+  id: string;
+  category: 'outdated' | 'missing' | 'compliance' | 'structural';
+  title: string;
+  description: string;
+  severity: 'high' | 'medium' | 'low';
+  sourceSnippet?: string;
+  currentInfo?: string;
+}
+
+export interface FindingsScanResult {
+  findings: CourseFinding[];
+  searchQueries: string[];
+  courseSummary: string;
 }
 
 export interface CourseData {

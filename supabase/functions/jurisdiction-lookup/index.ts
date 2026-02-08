@@ -42,7 +42,7 @@ Focus on official government bodies that enforce regulations in this area.`;
     const systemInstruction = `You are an expert in regulatory compliance and jurisdictional authority identification. Use location-based information to identify the correct regulatory bodies. Be specific about which level of government has authority.`;
 
     // Call Gemini with Maps grounding
-    const result = await callGeminiWithMapsGrounding(
+    const { text, usageMetadata } = await callGeminiWithMapsGrounding(
       "gemini-3-flash-preview",
       prompt,
       systemInstruction
@@ -55,11 +55,12 @@ Focus on official government bodies that enforce regulations in this area.`;
     return jsonResponse({
       location: body.location,
       regulationType: body.regulationType,
-      authority: result,
+      authority: text,
+      _usage: usageMetadata,
     });
 
   } catch (error) {
     console.error("Jurisdiction lookup error:", error);
-    return errorResponse(error.message || "Jurisdiction lookup failed", 500);
+    return errorResponse("Jurisdiction lookup failed. Please try again.", 500);
   }
 });

@@ -11,13 +11,21 @@ import {
   DemoResult,
   UpdateMode,
   Citation,
-  DemoSlideEnhanced
+  DemoSlideEnhanced,
+  CourseFinding,
+  FindingsScanResult
 } from "../types";
 import { recordUsage } from "./usageTracker";
 import { supabase } from "./supabaseClient";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
+// Gemini Client — only used as fallback in development when Edge Functions fail
+let ai: GoogleGenAI;
+try {
+  ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'placeholder' });
+} catch {
+  // If initialization fails, create with placeholder — Edge Functions are the primary path
+  ai = new GoogleGenAI({ apiKey: 'placeholder' });
+}
 
 /**
  * Helper to extract usage metadata from response and record it
@@ -95,7 +103,9 @@ async function analyzeCourseContentDirect(text: string, files: IngestedFile[], c
 
     if (text) parts.push({ text: `Course Text Content: ${text}` });
 
+    // Direct fallback only supports inline files (storage files need Edge Functions)
     files.forEach(file => {
+      if (!file.data) return;
       const base64Data = file.data.split(',')[1];
       parts.push({
         inlineData: {
@@ -106,7 +116,7 @@ async function analyzeCourseContentDirect(text: string, files: IngestedFile[], c
     });
 
     const prompt = `
-      Analyze this course material.
+      Analyze this course material for content freshness and learner engagement.
 
       Context:
       - Goal: ${config.goal}
@@ -114,9 +124,21 @@ async function analyzeCourseContentDirect(text: string, files: IngestedFile[], c
       - Location: ${config.location || "General/Global"}
       - Standards: ${config.standardsContext}
 
-      Determine freshness (0-100) and engagement (0-100).
-      Identify 3 specific issues for each.
-      Provide a summary.
+      Score freshness (0-100) and engagement (0-100). Identify 3 specific issues for each. Provide a summary.
+
+      SCORING RUBRICS (follow exactly):
+
+      FRESHNESS SCORE:
+      - 90-100: All citations, regulations, and statistics are within 1 year of current date
+      - 70-89: Mostly current, with 1-2 outdated references
+      - 50-69: Several outdated references, some deprecated regulations cited
+      - Below 50: Significantly outdated — multiple expired regulations, old statistics, deprecated practices
+
+      ENGAGEMENT SCORE:
+      - 90-100: Rich multimedia, interactive scenarios, varied question types, strong visual hierarchy
+      - 70-89: Good structure with some interactivity, clear headings, reasonable visual variety
+      - 50-69: Mostly text-based, minimal interactivity, basic formatting
+      - Below 50: Dense text walls, no visual breaks, no interactive elements, poor readability
     `;
 
     const response = await ai.models.generateContent({
@@ -160,11 +182,14 @@ async function analyzeCourseContentDirect(text: string, files: IngestedFile[], c
 }
 
 export const analyzeCourseContent = async (text: string, files: IngestedFile[], config: ProjectConfig): Promise<AnalysisMetrics> => {
+  const startTime = Date.now();
   try {
     const { data, error } = await withRetry(() =>
       supabase.functions.invoke('analyze-course', { body: { text, files, config } })
     );
     if (error) throw error;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-pro-preview', 'analyzeCourseContent (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
     return data as AnalysisMetrics;
   } catch (err) {
     console.warn('Edge Function analyze-course failed, falling back to direct:', err);
@@ -202,13 +227,16 @@ async function identifyLocalAuthorityDirect(location: string): Promise<string> {
 
 export const identifyLocalAuthority = async (location: string): Promise<string> => {
   if (!location) return "General Federal Standards";
-
+  const startTime = Date.now();
   try {
     const { data, error } = await withRetry(() =>
       supabase.functions.invoke('jurisdiction-lookup', { body: { location } })
     );
     if (error) throw error;
-    return (data as any)?.authority || (data as any)?.result || location;
+    const result = (data as any)?.authority || (data as any)?.result || location;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'identifyLocalAuthority (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return result;
   } catch (err) {
     console.warn('Edge Function jurisdiction-lookup failed, falling back to direct:', err);
     return identifyLocalAuthorityDirect(location);
@@ -270,13 +298,16 @@ async function performRegulatoryUpdateDirect(content: string, domainContext: str
 }
 
 export const performRegulatoryUpdate = async (content: string, domainContext: string, location: string): Promise<RegulatoryUpdate[]> => {
+  const startTime = Date.now();
   try {
     const { data, error } = await withRetry(() =>
       supabase.functions.invoke('regulatory-update', { body: { content, domainContext, location } })
     );
     if (error) throw error;
-    if (Array.isArray(data)) return data as RegulatoryUpdate[];
-    return (data as any)?.updates || [];
+    const result = Array.isArray(data) ? data as RegulatoryUpdate[] : (data as any)?.updates || [];
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'performRegulatoryUpdate (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return result;
   } catch (err) {
     console.warn('Edge Function regulatory-update failed, falling back to direct:', err);
     return performRegulatoryUpdateDirect(content, domainContext, location);
@@ -327,12 +358,15 @@ async function generateAssetDirect(prompt: string, base64Image?: string): Promis
 }
 
 export const generateAsset = async (prompt: string, base64Image?: string): Promise<string | null> => {
+    const startTime = Date.now();
     try {
         const { data, error } = await withRetry(() =>
             supabase.functions.invoke('generate-asset', { body: { prompt, baseImage: base64Image } })
         );
         if (error) throw error;
-        return (data as any)?.imageUrl || (data as any)?.image || null;
+        const result = (data as any)?.imageUrl || (data as any)?.image || null;
+        recordUsage('gemini-2.5-flash-image', 'generateAsset (edge)', 0, 1, Date.now() - startTime);
+        return result;
     } catch (err) {
         console.warn('Edge Function generate-asset failed, falling back to direct:', err);
         return generateAssetDirect(prompt, base64Image);
@@ -379,13 +413,16 @@ async function performVisualTransformationDirect(content: string, theme: string)
 }
 
 export const performVisualTransformation = async (content: string, theme: string): Promise<VisualTransformation[]> => {
+    const startTime = Date.now();
     try {
         const { data, error } = await withRetry(() =>
             supabase.functions.invoke('visual-transform', { body: { content, theme } })
         );
         if (error) throw error;
-        if (Array.isArray(data)) return data as VisualTransformation[];
-        return (data as any)?.transformations || [];
+        const result = Array.isArray(data) ? data as VisualTransformation[] : (data as any)?.transformations || [];
+        const usage = (data as any)?._usage;
+        recordUsage('gemini-3-flash-preview', 'performVisualTransformation (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+        return result;
     } catch (err) {
         console.warn('Edge Function visual-transform failed, falling back to direct:', err);
         return performVisualTransformationDirect(content, theme);
@@ -484,13 +521,16 @@ async function generateDemoSlidesDirect(topic: string, location: string, style: 
 }
 
 export const generateDemoSlides = async (topic: string, location: string, style: string, fileData?: string): Promise<DemoSlide[]> => {
+  const startTime = Date.now();
   try {
     const { data, error } = await withRetry(() =>
       supabase.functions.invoke('demo-slides', { body: { topic, location, style, fileData } })
     );
     if (error) throw error;
-    if (Array.isArray(data)) return data as DemoSlide[];
-    return (data as any)?.slides || [];
+    const result = Array.isArray(data) ? data as DemoSlide[] : (data as any)?.slides || [];
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateDemoSlides (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return result;
   } catch (err) {
     console.warn('Edge Function demo-slides failed, falling back to direct:', err);
     return generateDemoSlidesDirect(topic, location, style, fileData);
@@ -565,110 +605,150 @@ export const inferSectorFromContent = async (
   files: IngestedFile[]
 ): Promise<InferredSector> => {
   const startTime = Date.now();
-  const model = 'gemini-3-flash-preview';
+
+  // Build a richer topic string from filenames if topic is sparse
+  const fileContext = files.map(f => f.name).join(', ');
+  const enrichedTopic = topic
+    ? (fileContext ? `${topic} (files: ${fileContext})` : topic)
+    : fileContext || 'unknown';
+
+  // Prepare files for the Edge Function:
+  // - Storage-backed files: pass storagePath (Edge Function will download)
+  // - Small inline files: pass data
+  // - Large inline files: pass metadata only (topic + filename is enough)
+  const MAX_INLINE_INFERENCE_SIZE = 4 * 1024 * 1024;
+  const inferenceFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= MAX_INLINE_INFERENCE_SIZE) return f;
+      return null; // too large for inline, no storage path — skip
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
 
   try {
-    const parts: any[] = [];
+    // Route through Edge Function (API key server-side)
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic: enrichedTopic, inferSector: true, files: inferenceFiles }
+      })
+    );
+    if (error) throw error;
 
-    files.forEach(file => {
-      const base64Data = file.data.split(',')[1];
-      parts.push({
-        inlineData: {
-          mimeType: file.type,
-          data: base64Data
-        }
-      });
-    });
+    const result = data as any;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'inferSectorFromContent (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
 
-    const prompt = `
-      Analyze the provided content and determine the industry sector for this training material.
-
-      ${topic ? `Topic provided by user: "${topic}"` : 'No topic provided - infer from files only.'}
-
-      IMPORTANT: Focus on regulated/safety-critical industries:
-      - Healthcare (HIPAA, patient safety, infection control)
-      - Construction/Trades (OSHA, fall protection, tool safety)
-      - Manufacturing (lockout/tagout, machine guarding)
-      - Food Service (FDA, allergens, food safety)
-      - Transportation/Logistics (DOT, FMCSA, hazmat)
-      - Aviation (FAA, maintenance, safety protocols)
-      - Finance (SEC, compliance, AML)
-      - Energy (NERC, safety, environmental)
-      - Legal (ethics, compliance, professional conduct)
-
-      Determine:
-      1. The primary sector this content belongs to
-      2. Your confidence level (high/medium/low)
-      3. If the content spans multiple unrelated sectors, flag as ambiguous
-      4. List any alternative sectors that could apply
-      5. Brief reasoning for your determination
-    `;
-
-    parts.push({ text: prompt });
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            sector: {
-              type: Type.STRING,
-              description: "Primary industry sector (e.g., 'Healthcare', 'Construction', 'Manufacturing')"
-            },
-            confidence: {
-              type: Type.STRING,
-              description: "Confidence level: 'high', 'medium', or 'low'"
-            },
-            alternatives: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Other sectors that could apply"
-            },
-            reasoning: {
-              type: Type.STRING,
-              description: "Brief explanation of why this sector was chosen"
-            },
-            isAmbiguous: {
-              type: Type.BOOLEAN,
-              description: "True if content spans multiple unrelated sectors"
-            },
-            detectedTopics: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Key topics/subjects detected in the content"
-            }
-          },
-          required: ["sector", "confidence", "reasoning", "isAmbiguous"]
-        }
-      }
-    });
-
-    trackUsage(response, model, 'inferSectorFromContent', startTime);
-
-    const result = JSON.parse(response.text || '{}');
     return {
       sector: result.sector || 'General',
       confidence: result.confidence || 'low',
       alternatives: result.alternatives || [],
-      reasoning: result.reasoning || 'Unable to determine sector',
+      reasoning: result.reasoning || 'Unable to determine industry',
       isAmbiguous: result.isAmbiguous || false,
       detectedTopics: result.detectedTopics || []
     };
 
-  } catch (error) {
-    console.error("Sector Inference Error:", error);
-    return {
-      sector: 'General',
-      confidence: 'low',
-      reasoning: 'Error during analysis. Please specify sector manually.',
-      isAmbiguous: true,
-      alternatives: ['Healthcare', 'Construction', 'Manufacturing', 'Transportation']
-    };
+  } catch (err) {
+    console.warn('Edge Function sector inference failed, trying direct:', err);
+
+    // Fallback to direct API (dev only) — only inline files work here
+    try {
+      const inlineFiles = files.filter(f => f.data);
+      return await inferSectorFromContentDirect(enrichedTopic, inlineFiles);
+    } catch (error) {
+      console.error("Sector Inference Error:", error);
+      return {
+        sector: 'General',
+        confidence: 'low',
+        reasoning: 'Could not identify industry automatically.',
+        isAmbiguous: true,
+        alternatives: ['Information Technology', 'Healthcare', 'Construction', 'Finance & Banking']
+      };
+    }
   }
 };
+
+async function inferSectorFromContentDirect(
+  topic: string,
+  files: IngestedFile[]
+): Promise<InferredSector> {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
+  const parts: any[] = [];
+
+  files.forEach(file => {
+    if (!file.data) return;
+    const base64Data = file.data.split(',')[1];
+    parts.push({
+      inlineData: {
+        mimeType: file.type,
+        data: base64Data
+      }
+    });
+  });
+
+  const prompt = `
+    Determine the primary industry for this training/certification material.
+
+    ${topic ? `Topic: "${topic}"` : 'No topic provided - infer from files only.'}
+
+    Pick the single best-matching industry:
+    - Healthcare, Pharmaceuticals
+    - Construction, Manufacturing, Mining & Resources
+    - Food Service, Hospitality & Tourism
+    - Transportation & Logistics, Aviation
+    - Finance & Banking, Insurance, Accounting & Audit
+    - Energy & Utilities, Environmental & Sustainability
+    - Legal & Compliance, Government & Public Sector
+    - Information Technology, Cloud Computing, Cybersecurity, Software Engineering, Data Science & AI
+    - Telecommunications, Media & Communications
+    - Education & Training, Human Resources, Project Management
+    - Real Estate, Retail & E-Commerce
+    - Agriculture, Nonprofit & NGO
+
+    Return the industry name exactly as listed above.
+
+    CRITICAL RULES:
+    - Identify the PRIMARY industry of the course itself, not industries mentioned as examples within the course.
+    - A cloud computing certification that uses plumbing as an analogy is Cloud Computing, not Construction.
+    - Set isAmbiguous to false unless the course genuinely spans two equal industries.
+    - Include 3-5 specific subjects in detectedTopics (e.g., "AWS Solutions Architect", "EC2 Instance Types") — not generic category names.
+  `;
+
+  parts.push({ text: prompt });
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: { parts },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          sector: { type: Type.STRING },
+          confidence: { type: Type.STRING },
+          alternatives: { type: Type.ARRAY, items: { type: Type.STRING } },
+          reasoning: { type: Type.STRING },
+          isAmbiguous: { type: Type.BOOLEAN },
+          detectedTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["sector", "confidence", "reasoning", "isAmbiguous"]
+      }
+    }
+  });
+
+  trackUsage(response, model, 'inferSectorFromContent', startTime);
+
+  const result = JSON.parse(response.text || '{}');
+  return {
+    sector: result.sector || 'General',
+    confidence: result.confidence || 'low',
+    alternatives: result.alternatives || [],
+    reasoning: result.reasoning || 'Unable to determine sector',
+    isAmbiguous: result.isAmbiguous || false,
+    detectedTopics: result.detectedTopics || []
+  };
+}
 
 // ============================================
 // 9. Enhanced Demo Slide Generation with Search Grounding
@@ -688,7 +768,9 @@ async function generateDemoSlidesEnhancedDirect(
   try {
     const parts: any[] = [];
 
+    // Direct fallback only supports inline files
     files.forEach(file => {
+      if (!file.data) return;
       const base64Data = file.data.split(',')[1];
       parts.push({
         inlineData: {
@@ -701,16 +783,16 @@ async function generateDemoSlidesEnhancedDirect(
     let modeInstructions = '';
     if (updateMode === 'regulatory' || updateMode === 'full') {
       modeInstructions += `
-        FOR REGULATORY UPDATES:
+        REGULATORY UPDATES:
         - Search for current ${sector} regulations in ${location}
         - Find specific code numbers, effective dates, and official sources
         - Identify outdated information and provide corrected versions
-        - Include numbered citations [1], [2], etc. for each fact
+        - Reference citations by ID number matching the citations array
       `;
     }
     if (updateMode === 'visual' || updateMode === 'full') {
       modeInstructions += `
-        FOR VISUAL UPDATES:
+        VISUAL UPDATES:
         - Transform text-heavy content into engaging formats
         - Suggest modern layouts (timelines, accordions, cards)
         - Recommend visual hierarchy improvements
@@ -718,44 +800,164 @@ async function generateDemoSlidesEnhancedDirect(
     }
 
     const prompt = `
-      You are CourseCorrect, an AI that modernizes training materials.
-
-      CONTEXT:
-      - Topic: "${topic}"
-      - Industry Sector: ${sector}
-      - Location: ${location}
-      - Update Type: ${updateMode}
-      - Visual Style: ${style}
+      Modernize training materials for "${topic}" in the ${sector} sector, located in ${location}.
+      Update type: ${updateMode}. Visual style: ${style}.
 
       ${modeInstructions}
 
-      TASK:
-      Create exactly 3 slides showing BEFORE and AFTER content.
+      Create exactly 3 slides showing BEFORE (outdated 2015-era content) and AFTER (current, corrected content).
+      ${files.length > 0 ? 'Base content on the uploaded materials.' : 'Create realistic example content for this sector.'}
 
-      For each slide:
-      1. Show the ORIGINAL outdated content (what a 2015-era course might say)
-      2. Show the UPDATED modern content with current regulations/facts
-      3. Use numbered citations [1], [2] etc. for any regulatory claims
-      4. Summarize what changed and why
+      For the "after" content, use search to find real current regulations. Include citation IDs referencing specific sources.
 
-      ${files.length > 0 ? 'Base your content on the uploaded materials.' : 'Create realistic example content for this sector.'}
-
-      YOU MUST USE GOOGLE SEARCH to find real, current regulations for ${sector} in ${location}.
-      Include specific code numbers, dates, and official sources.
+      CRITICAL CONSTRAINTS (follow exactly):
+      - Each bullet must include a specific fact, regulation number, or actionable instruction — not generic statements like "Understanding the basics"
+      - "before" bullets must show plausible outdated content with wrong dates, old regulation numbers, or deprecated practices
+      - "after" bullets must cite specific current codes, dates, and requirements
+      - Provide real source URLs in citations, not placeholder links
     `;
 
     parts.push({ text: prompt });
+
+    // Gemini 3: Search Grounding + Structured Output together
+    const slideContentSchema = {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        bullets: { type: Type.ARRAY, items: { type: Type.STRING } },
+        citationIds: { type: Type.ARRAY, items: { type: Type.INTEGER } }
+      },
+      required: ["title", "bullets", "citationIds"],
+      propertyOrdering: ["title", "bullets", "citationIds"]
+    };
 
     const response = await ai.models.generateContent({
       model,
       contents: { parts },
       config: {
         tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            slides: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  before: slideContentSchema,
+                  after: slideContentSchema,
+                  changesSummary: { type: Type.STRING },
+                  visualStyle: {
+                    type: Type.OBJECT,
+                    properties: {
+                      accentColor: { type: Type.STRING },
+                      layout: { type: Type.STRING }
+                    },
+                    required: ["accentColor", "layout"]
+                  }
+                },
+                required: ["id", "before", "after", "changesSummary", "visualStyle"]
+              }
+            },
+            citations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.INTEGER },
+                  title: { type: Type.STRING },
+                  url: { type: Type.STRING },
+                  snippet: { type: Type.STRING },
+                  accessedDate: { type: Type.STRING }
+                },
+                required: ["id", "title", "url", "snippet", "accessedDate"]
+              }
+            },
+            metadata: {
+              type: Type.OBJECT,
+              properties: {
+                topic: { type: Type.STRING },
+                sector: { type: Type.STRING },
+                location: { type: Type.STRING },
+                updateMode: { type: Type.STRING },
+                searchQueries: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ["topic", "sector", "location", "updateMode", "searchQueries"]
+            }
+          },
+          required: ["slides", "citations", "metadata"],
+          propertyOrdering: ["slides", "citations", "metadata"]
+        }
       }
     });
 
     trackUsage(response, model, 'generateDemoSlidesEnhanced', startTime);
 
+    const responseText = response.text || '';
+
+    // Try structured JSON parsing first (expected with responseSchema)
+    try {
+      const parsed = JSON.parse(responseText);
+      if (parsed.slides && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+        // Merge grounding metadata citations with model-generated citations
+        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+        let citations: Citation[] = parsed.citations || [];
+
+        // Supplement with grounding chunks if model citations are sparse
+        if (groundingMetadata?.groundingChunks && citations.length === 0) {
+          groundingMetadata.groundingChunks.forEach((chunk: any, idx: number) => {
+            if (chunk.web) {
+              citations.push({
+                id: idx + 1,
+                title: chunk.web.title || `Source ${idx + 1}`,
+                url: chunk.web.uri || '',
+                snippet: '',
+                accessedDate: new Date().toISOString().split('T')[0]
+              });
+            }
+          });
+        }
+
+        const searchQueries = parsed.metadata?.searchQueries ||
+          groundingMetadata?.webSearchQueries || [];
+
+        return {
+          slides: parsed.slides.slice(0, 3).map((s: any, idx: number) => ({
+            id: s.id || `slide-${idx + 1}`,
+            before: {
+              title: s.before?.title || `Section ${idx + 1} (Original)`,
+              bullets: s.before?.bullets || ['Original content'],
+              citationIds: s.before?.citationIds || []
+            },
+            after: {
+              title: s.after?.title || `Section ${idx + 1} (Updated)`,
+              bullets: s.after?.bullets || ['Updated content'],
+              citationIds: s.after?.citationIds || []
+            },
+            changesSummary: s.changesSummary || 'Updated with current information.',
+            visualStyle: {
+              accentColor: s.visualStyle?.accentColor || ['#4f46e5', '#0ea5e9', '#10b981'][idx % 3],
+              layout: (s.visualStyle?.layout || 'split') as 'split' | 'stacked' | 'overlay'
+            }
+          })),
+          citations,
+          metadata: {
+            sector: parsed.metadata?.sector || sector,
+            location: parsed.metadata?.location || location,
+            updateMode: (parsed.metadata?.updateMode || updateMode) as UpdateMode,
+            generatedAt: new Date().toISOString(),
+            searchQueries
+          }
+        };
+      }
+    } catch {
+      // JSON parsing failed, fall through to regex parser
+      console.warn('Structured JSON parsing failed, falling back to text parsing');
+    }
+
+    // Fallback: use legacy text parsing
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
     const citations: Citation[] = [];
 
@@ -774,8 +976,6 @@ async function generateDemoSlidesEnhancedDirect(
     }
 
     const searchQueries = groundingMetadata?.webSearchQueries || [];
-
-    const responseText = response.text || '';
     const slides = parseResponseToSlides(responseText, style);
 
     return {
@@ -796,21 +996,153 @@ async function generateDemoSlidesEnhancedDirect(
   }
 }
 
+// ============================================
+// Findings Scan — Stage 1 of the two-stage demo flow
+// ============================================
+
+export const scanCourseFindings = async (
+  topic: string,
+  sector: string,
+  location: string,
+  updateMode: UpdateMode,
+  files: IngestedFile[]
+): Promise<FindingsScanResult> => {
+  const startTime = Date.now();
+
+  // Prepare files: pass storage paths, small inline files, skip large inline-only files
+  const scanFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= 4 * 1024 * 1024) return f;
+      return null;
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic, sector, location, updateMode, files: scanFiles, action: 'scan' }
+      })
+    );
+    if (error) throw error;
+    const scanUsage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'scanCourseFindings (edge)', scanUsage?.promptTokenCount || 0, scanUsage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return data as FindingsScanResult;
+  } catch (err) {
+    console.warn('Edge Function scan failed, falling back to direct:', err);
+    return scanCourseFindingsDirect(topic, sector, location, updateMode, files);
+  }
+};
+
+async function scanCourseFindingsDirect(
+  topic: string,
+  sector: string,
+  location: string,
+  updateMode: UpdateMode,
+  files: IngestedFile[]
+): Promise<FindingsScanResult> {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
+  const parts: any[] = [];
+  files.forEach(file => {
+    if (!file.data) return;
+    const base64Data = file.data.split(',')[1] || file.data;
+    parts.push({ inlineData: { mimeType: file.type, data: base64Data } });
+  });
+
+  let categoryInstructions = "";
+  if (updateMode === "regulatory" || updateMode === "full") {
+    categoryInstructions += `1. OUTDATED: Content that was once correct but has been superseded\n2. COMPLIANCE: Regulatory/standards changes (only if course explicitly teaches compliance)\n`;
+  }
+  if (updateMode === "visual" || updateMode === "full") {
+    categoryInstructions += `3. MISSING: Important topics absent from this course\n4. STRUCTURAL: Format issues (text-heavy, missing assessments)\n`;
+  }
+
+  parts.push({
+    text: `Analyze course materials for "${topic}" in the ${sector} sector (${location}).
+
+TASK: Identify what needs updating. DO NOT generate slides. Only report findings.
+
+Categories: ${categoryInstructions}
+
+Return 3-5 most impactful findings. Every claim must come from course materials or search results. Do not invent facts, dates, or statistics. If course creation date is unknown, say "undated". Focus on the course's primary subject — not tangential topics.
+
+Set id to "finding-1", "finding-2", etc. category: "outdated"|"missing"|"compliance"|"structural". severity: "high"|"medium"|"low".`
+  });
+
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user', parts }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            findings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  severity: { type: Type.STRING },
+                  sourceSnippet: { type: Type.STRING },
+                  currentInfo: { type: Type.STRING },
+                },
+                required: ['id', 'category', 'title', 'description', 'severity'],
+              },
+            },
+            searchQueries: { type: Type.ARRAY, items: { type: Type.STRING } },
+            courseSummary: { type: Type.STRING },
+          },
+          required: ['findings', 'searchQueries', 'courseSummary'],
+        },
+      },
+    });
+
+    trackUsage(response, model, 'scanCourseFindings', startTime);
+    const text = response.text || '{}';
+    const parsed = JSON.parse(text);
+    return {
+      findings: parsed.findings || [],
+      searchQueries: parsed.searchQueries || [],
+      courseSummary: parsed.courseSummary || '',
+    };
+  } catch (error) {
+    console.error('Direct scan findings error:', error);
+    return { findings: [], searchQueries: [], courseSummary: 'Unable to analyze course content.' };
+  }
+}
+
 export const generateDemoSlidesEnhanced = async (
   topic: string,
   sector: string,
   location: string,
   updateMode: UpdateMode,
   style: string,
-  files: IngestedFile[]
+  files: IngestedFile[],
+  approvedFindings?: CourseFinding[],
+  userContext?: string,
+  designPreferences?: { audience?: string; feeling?: string; emphasis?: string }
 ): Promise<DemoResult> => {
+  const startTime = Date.now();
   try {
+    // Use guided generation if findings are provided
+    const body = approvedFindings && approvedFindings.length > 0
+      ? { topic, sector, location, updateMode, style, files, action: 'generate' as const, approvedFindings, userContext, designPreferences }
+      : { topic, sector, location, updateMode, style, files, enhanced: true };
+
     const { data, error } = await withRetry(() =>
-      supabase.functions.invoke('demo-slides', {
-        body: { topic, sector, location, updateMode, style, files, enhanced: true }
-      })
+      supabase.functions.invoke('demo-slides', { body })
     );
     if (error) throw error;
+    const enhancedUsage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateDemoSlidesEnhanced (edge)', enhancedUsage?.promptTokenCount || 0, enhancedUsage?.candidatesTokenCount || 0, Date.now() - startTime);
     return data as DemoResult;
   } catch (err) {
     console.warn('Edge Function demo-slides (enhanced) failed, falling back to direct:', err);

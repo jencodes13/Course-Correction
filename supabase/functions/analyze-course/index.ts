@@ -3,14 +3,15 @@
 
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAuth, trackApiUsage } from "../_shared/auth.ts";
-import { callGemini } from "../_shared/gemini.ts";
+import { callGemini, resolveFileParts } from "../_shared/gemini.ts";
 
 interface AnalysisRequest {
   text?: string;
   files?: Array<{
     name: string;
     type: string;
-    data: string; // base64
+    data?: string;        // base64 (small files)
+    storagePath?: string;  // Supabase Storage path (large files)
   }>;
   config?: {
     goal?: string;
@@ -84,31 +85,16 @@ ${body.config?.location ? `Geographic Focus: ${body.config.location}` : ""}
 
 Be specific about issues and provide actionable feedback.`;
 
-    // Build message parts
-    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
-
-    if (body.text) {
-      parts.push({ text: `Course content:\n\n${body.text}` });
-    }
-
-    // Add file data (images, PDFs as images)
-    if (body.files) {
-      for (const file of body.files) {
-        if (file.type.startsWith("image/") || file.type === "application/pdf") {
-          parts.push({
-            inlineData: {
-              mimeType: file.type,
-              data: file.data.replace(/^data:[^;]+;base64,/, ""),
-            },
-          });
-        }
-      }
-    }
-
-    parts.push({ text: "Analyze this course content and provide your assessment." });
+    // Build message parts — resolve files from inline base64 or Supabase Storage
+    const fileParts = body.files ? await resolveFileParts(body.files) : [];
+    const parts = [
+      ...(body.text ? [{ text: `Course content:\n\n${body.text}` }] : []),
+      ...fileParts,
+      { text: "Analyze this course content and provide your assessment." },
+    ];
 
     // Call Gemini
-    const result = await callGemini(
+    const { text, usageMetadata } = await callGemini(
       "gemini-3-pro-preview",
       [{ role: "user", parts }],
       {
@@ -120,12 +106,12 @@ Be specific about issues and provide actionable feedback.`;
     // Track API usage
     await trackApiUsage(auth.userId, "analyze-course", "gemini-3-pro-preview");
 
-    // Parse and return result
-    const analysis = JSON.parse(result);
-    return jsonResponse(analysis);
+    // Parse and return result with usage metadata
+    const analysis = JSON.parse(text);
+    return jsonResponse({ ...analysis, _usage: usageMetadata });
 
   } catch (error) {
     console.error("Analysis error:", error);
-    return errorResponse(error.message || "Analysis failed", 500);
+    return errorResponse("Analysis failed. Please try again.", 500);
   }
 });

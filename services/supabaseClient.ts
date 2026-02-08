@@ -43,6 +43,14 @@ export async function signIn(email: string, password: string) {
   return data;
 }
 
+export async function signInWithGoogle() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) throw error;
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
@@ -221,6 +229,94 @@ export async function deleteFile(id: string, storagePath: string): Promise<void>
     .eq("id", id);
 
   if (error) throw error;
+}
+
+// ============================================
+// SMART FILE UPLOAD — routes small files inline, large files to storage
+// ============================================
+
+import type { IngestedFile } from "../types";
+
+const INLINE_SIZE_THRESHOLD = 4 * 1024 * 1024; // 4MB — below this, use base64 inline
+
+/**
+ * Upload a file to Supabase Storage for the demo flow (no auth required).
+ * Uses the anon key with the `demo/` path prefix.
+ * Returns the storage path for later retrieval by Edge Functions.
+ */
+export async function uploadDemoFile(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<{ storagePath: string; sizeBytes: number }> {
+  const sessionId = crypto.randomUUID().slice(0, 8);
+  const ext = file.name.split(".").pop() || "bin";
+  const storagePath = `demo/${sessionId}/${crypto.randomUUID()}.${ext}`;
+
+  // Use XHR for progress tracking (Supabase SDK doesn't expose upload progress)
+  const storageUrl = `${SUPABASE_URL}/storage/v1/object/course-files/${storagePath}`;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", storageUrl);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
+    xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.setRequestHeader("x-upsert", "false");
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ storagePath, sizeBytes: file.size });
+      } else {
+        reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Upload network error"));
+    xhr.send(file);
+  });
+}
+
+/**
+ * Process a file for the demo upload pipeline.
+ * - Small files (< 4MB): read as base64 data URL (inline, fast)
+ * - Large files (>= 4MB): upload to Supabase Storage, return storage path
+ */
+export async function processFileForUpload(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<IngestedFile> {
+  // Small files: read as base64 inline (faster, no storage round-trip)
+  if (file.size <= INLINE_SIZE_THRESHOLD) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+      reader.onload = (e) => {
+        onProgress?.(100);
+        resolve({
+          name: file.name,
+          type: file.type,
+          data: e.target?.result as string,
+          sizeBytes: file.size,
+        });
+      };
+      reader.onerror = () => reject(new Error("File read failed"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Large files: upload to Supabase Storage
+  const { storagePath, sizeBytes } = await uploadDemoFile(file, onProgress);
+  return { name: file.name, type: file.type, storagePath, sizeBytes };
 }
 
 // ============================================

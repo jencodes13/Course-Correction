@@ -86,7 +86,7 @@ For each transformation:
 ${body.content}`;
 
     // Call Gemini
-    const result = await callGemini(
+    const { text, usageMetadata } = await callGemini(
       "gemini-3-flash-preview",
       [{ role: "user", parts: [{ text: userPrompt }] }],
       {
@@ -98,18 +98,18 @@ ${body.content}`;
     // Track API usage
     await trackApiUsage(auth.userId, "visual-transform", "gemini-3-flash-preview");
 
-    // Parse and return result
+    // Parse and return result with usage metadata
     let transformations;
     try {
-      transformations = JSON.parse(result);
+      transformations = JSON.parse(text);
     } catch {
       transformations = [];
     }
 
-    return jsonResponse({ transformations });
+    return jsonResponse({ transformations, _usage: usageMetadata });
 
   } catch (error) {
     console.error("Visual transformation error:", error);
-    return errorResponse(error.message || "Visual transformation failed", 500);
+    return errorResponse("Visual transformation failed. Please try again.", 500);
   }
 });

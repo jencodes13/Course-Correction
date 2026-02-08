@@ -68,7 +68,7 @@ Be thorough and cite specific regulation numbers, publication dates, and officia
 ${body.content}`;
 
     // Call Gemini with Google Search grounding
-    const result = await callGemini(
+    const { text, usageMetadata } = await callGemini(
       "gemini-3-flash-preview",
       [{ role: "user", parts: [{ text: userPrompt }] }],
       {
@@ -81,19 +81,19 @@ ${body.content}`;
     // Track API usage
     await trackApiUsage(auth.userId, "regulatory-update", "gemini-3-flash-preview");
 
-    // Parse and return result
+    // Parse and return result with usage metadata
     let updates;
     try {
-      updates = JSON.parse(result);
+      updates = JSON.parse(text);
     } catch {
       // If JSON parsing fails, return the raw text
-      updates = [{ id: "1", originalText: "", updatedText: result, citation: "", reason: "Analysis result" }];
+      updates = [{ id: "1", originalText: "", updatedText: text, citation: "", reason: "Analysis result" }];
     }
 
-    return jsonResponse({ updates });
+    return jsonResponse({ updates, _usage: usageMetadata });
 
   } catch (error) {
     console.error("Regulatory update error:", error);
-    return errorResponse(error.message || "Regulatory update failed", 500);
+    return errorResponse("Regulatory update failed. Please try again.", 500);
   }
 });

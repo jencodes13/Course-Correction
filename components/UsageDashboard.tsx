@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Activity, Zap, DollarSign, Clock, ChevronDown, ChevronUp, Download, Trash2, RefreshCw } from 'lucide-react';
+import { X, Activity, Zap, DollarSign, Clock, ChevronDown, ChevronUp, Download, Trash2, RefreshCw, Cloud, CheckCircle, AlertTriangle, Loader } from 'lucide-react';
 import {
   getUsageSummary,
   getTodayUsage,
@@ -9,6 +9,7 @@ import {
   UsageSummary,
   UsageRecord
 } from '../services/usageTracker';
+import { fetchCloudMetrics, formatMethodName, CloudMetricsData } from '../services/cloudMonitoring';
 
 // Design tokens matching LandingPage
 const T = {
@@ -51,7 +52,10 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
   const [todaySummary, setTodaySummary] = useState<UsageSummary | null>(null);
   const [allRecords, setAllRecords] = useState<UsageRecord[]>([]);
   const [showAllCalls, setShowAllCalls] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'models'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'models' | 'cloud'>('overview');
+  const [cloudMetrics, setCloudMetrics] = useState<CloudMetricsData | null>(null);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
 
   const refreshData = () => {
     setSummary(getUsageSummary());
@@ -59,8 +63,23 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
     setAllRecords(getAllRecords());
   };
 
+  const refreshCloudMetrics = async () => {
+    setCloudLoading(true);
+    setCloudError(null);
+    try {
+      const data = await fetchCloudMetrics(30);
+      setCloudMetrics(data);
+      if (!data) setCloudError('Cloud metrics unavailable');
+    } catch (err) {
+      setCloudError('Failed to fetch cloud metrics');
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
   useEffect(() => {
     refreshData();
+    refreshCloudMetrics();
 
     // Listen for real-time updates
     const handleUpdate = () => refreshData();
@@ -179,17 +198,19 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
           display: 'flex', gap: 3, padding: '12px 24px',
           borderBottom: `1px solid ${T.border}`,
         }}>
-          {(['overview', 'calls', 'models'] as const).map(tab => (
+          {(['overview', 'calls', 'models', 'cloud'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '8px 16px', borderRadius: 8,
               border: 'none', cursor: 'pointer',
               fontSize: 12, fontWeight: activeTab === tab ? 600 : 500,
-              fontFamily: T.sans, textTransform: 'capitalize',
-              background: activeTab === tab ? T.accentMuted : 'transparent',
-              color: activeTab === tab ? T.accent : T.textDim,
+              fontFamily: T.sans,
+              background: activeTab === tab ? (tab === 'cloud' ? 'rgba(59,130,246,0.15)' : T.accentMuted) : 'transparent',
+              color: activeTab === tab ? (tab === 'cloud' ? '#60a5fa' : T.accent) : T.textDim,
               transition: 'all 0.2s ease',
+              display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              {tab}
+              {tab === 'cloud' && <Cloud size={12} />}
+              {tab === 'cloud' ? 'Google Cloud' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -232,6 +253,40 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
                   subValue="last 50 calls"
                 />
               </div>
+
+              {/* Google Cloud Verified Banner */}
+              {cloudMetrics && (
+                <div style={{
+                  background: 'rgba(59,130,246,0.08)',
+                  border: '1px solid rgba(59,130,246,0.2)',
+                  borderRadius: 12, padding: '12px 16px',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8,
+                    background: 'rgba(59,130,246,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Cloud size={16} style={{ color: '#60a5fa' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa' }}>
+                      Google Cloud Verified
+                    </div>
+                    <div style={{ fontSize: 11, color: T.textMuted }}>
+                      {cloudMetrics.totalRequests} total API calls ({cloudMetrics.successRate}% success rate) — last {cloudMetrics.timeRange.daysBack} days
+                    </div>
+                  </div>
+                  <button onClick={() => setActiveTab('cloud')} style={{
+                    fontSize: 11, color: '#60a5fa', background: 'rgba(59,130,246,0.1)',
+                    border: '1px solid rgba(59,130,246,0.2)', borderRadius: 6,
+                    padding: '4px 10px', cursor: 'pointer', fontFamily: T.sans,
+                  }}>
+                    Details
+                  </button>
+                </div>
+              )}
 
               {/* Token Breakdown */}
               <div style={{
@@ -369,6 +424,238 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
                 }}>
                   No model usage data yet
                 </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'cloud' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Cloud header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Cloud size={18} style={{ color: '#60a5fa' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Google Cloud Monitoring</div>
+                    <div style={{ fontSize: 11, color: T.textDim }}>
+                      Real API metrics from your GCP project
+                    </div>
+                  </div>
+                </div>
+                <button onClick={refreshCloudMetrics} disabled={cloudLoading} style={{
+                  padding: '6px 12px', borderRadius: 8,
+                  border: '1px solid rgba(59,130,246,0.2)',
+                  background: 'rgba(59,130,246,0.08)',
+                  color: '#60a5fa', cursor: cloudLoading ? 'wait' : 'pointer',
+                  fontSize: 11, fontFamily: T.sans,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  {cloudLoading ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={12} />}
+                  Refresh
+                </button>
+              </div>
+
+              {cloudLoading && !cloudMetrics && (
+                <div style={{
+                  padding: 40, textAlign: 'center',
+                  background: T.surface, borderRadius: 12,
+                }}>
+                  <Loader size={20} style={{ color: '#60a5fa', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                  <div style={{ fontSize: 13, color: T.textMuted }}>Fetching metrics from Google Cloud...</div>
+                </div>
+              )}
+
+              {cloudError && !cloudMetrics && (
+                <div style={{
+                  padding: 24, textAlign: 'center',
+                  background: T.redMuted, border: `1px solid rgba(194,112,86,0.2)`,
+                  borderRadius: 12,
+                }}>
+                  <AlertTriangle size={20} style={{ color: T.red, margin: '0 auto 8px' }} />
+                  <div style={{ fontSize: 13, color: T.red, marginBottom: 4 }}>{cloudError}</div>
+                  <div style={{ fontSize: 11, color: T.textDim }}>
+                    Make sure the GOOGLE_SERVICE_ACCOUNT_KEY secret is set and the cloud-metrics Edge Function is deployed.
+                  </div>
+                </div>
+              )}
+
+              {cloudMetrics && (
+                <>
+                  {/* Summary stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <div style={{
+                      background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
+                      borderRadius: 12, padding: 14,
+                    }}>
+                      <div style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>Total API Calls</div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: '#60a5fa', fontFamily: T.mono }}>
+                        {cloudMetrics.totalRequests}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textDim, marginTop: 4 }}>
+                        Last {cloudMetrics.timeRange.daysBack} days
+                      </div>
+                    </div>
+                    <div style={{
+                      background: T.greenMuted, border: `1px solid ${T.greenBorder}`,
+                      borderRadius: 12, padding: 14,
+                    }}>
+                      <div style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>Success Rate</div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: T.green, fontFamily: T.mono }}>
+                        {cloudMetrics.successRate}%
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textDim, marginTop: 4 }}>
+                        {cloudMetrics.errorCount} errors
+                      </div>
+                    </div>
+                    <div style={{
+                      background: T.surface, border: `1px solid ${T.border}`,
+                      borderRadius: 12, padding: 14,
+                    }}>
+                      <div style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>API Methods</div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontFamily: T.mono }}>
+                        {cloudMetrics.byMethod.length}
+                      </div>
+                      <div style={{ fontSize: 10, color: T.textDim, marginTop: 4 }}>
+                        Distinct endpoints used
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* By Method breakdown */}
+                  <div style={{
+                    background: T.surface, border: `1px solid ${T.border}`,
+                    borderRadius: 12, padding: 16,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 12 }}>
+                      Calls by API Method
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {cloudMetrics.byMethod.map(({ method, count }) => {
+                        const maxCount = cloudMetrics.byMethod[0]?.count || 1;
+                        const pct = (count / maxCount) * 100;
+                        return (
+                          <div key={method} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{
+                              width: 140, fontSize: 12, color: T.text,
+                              fontFamily: T.mono, flexShrink: 0,
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            }}>
+                              {formatMethodName(method)}
+                            </div>
+                            <div style={{ flex: 1, height: 20, background: T.border, borderRadius: 4, overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${pct}%`, height: '100%',
+                                background: 'rgba(59,130,246,0.4)',
+                                borderRadius: 4,
+                                transition: 'width 0.3s ease',
+                              }} />
+                            </div>
+                            <div style={{
+                              width: 40, fontSize: 12, fontWeight: 600, color: '#60a5fa',
+                              fontFamily: T.mono, textAlign: 'right', flexShrink: 0,
+                            }}>
+                              {count}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Daily Usage */}
+                  {cloudMetrics.dailyUsage.length > 0 && (
+                    <div style={{
+                      background: T.surface, border: `1px solid ${T.border}`,
+                      borderRadius: 12, padding: 16,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 12 }}>
+                        Daily API Calls
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 100 }}>
+                        {cloudMetrics.dailyUsage.map(({ date, count }) => {
+                          const maxDay = Math.max(...cloudMetrics.dailyUsage.map(d => d.count));
+                          const heightPct = maxDay > 0 ? (count / maxDay) * 100 : 0;
+                          return (
+                            <div key={date} style={{
+                              flex: 1, display: 'flex', flexDirection: 'column',
+                              alignItems: 'center', gap: 4,
+                            }}>
+                              <div style={{
+                                fontSize: 9, color: '#60a5fa', fontFamily: T.mono,
+                                opacity: count > 0 ? 1 : 0,
+                              }}>
+                                {count}
+                              </div>
+                              <div style={{
+                                width: '100%', maxWidth: 32,
+                                height: Math.max(heightPct, 2),
+                                background: count > 0 ? 'rgba(59,130,246,0.4)' : T.border,
+                                borderRadius: '4px 4px 0 0',
+                                transition: 'height 0.3s ease',
+                              }} />
+                              <div style={{
+                                fontSize: 8, color: T.textDim, fontFamily: T.mono,
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {date.slice(5)} {/* MM-DD */}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Response Codes */}
+                  {cloudMetrics.byResponseCode.length > 0 && (
+                    <div style={{
+                      background: T.surface, border: `1px solid ${T.border}`,
+                      borderRadius: 12, padding: 16,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text, marginBottom: 12 }}>
+                        Response Codes
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        {cloudMetrics.byResponseCode.map(({ code, count }) => {
+                          const isSuccess = code.startsWith('2');
+                          return (
+                            <div key={code} style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              padding: '8px 14px', borderRadius: 8,
+                              background: isSuccess ? T.greenMuted : T.redMuted,
+                              border: `1px solid ${isSuccess ? T.greenBorder : 'rgba(194,112,86,0.2)'}`,
+                            }}>
+                              {isSuccess
+                                ? <CheckCircle size={12} style={{ color: T.green }} />
+                                : <AlertTriangle size={12} style={{ color: T.red }} />
+                              }
+                              <span style={{
+                                fontSize: 12, fontWeight: 600, fontFamily: T.mono,
+                                color: isSuccess ? T.green : T.red,
+                              }}>
+                                {code}
+                              </span>
+                              <span style={{ fontSize: 12, color: T.textMuted }}>
+                                {count}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Data Source info */}
+                  <div style={{
+                    fontSize: 10, color: T.textDim, textAlign: 'center',
+                    padding: '8px 0',
+                  }}>
+                    Source: Google Cloud Monitoring API — Project {cloudMetrics.projectId}
+                    {' — '}
+                    {new Date(cloudMetrics.timeRange.start).toLocaleDateString()} to {new Date(cloudMetrics.timeRange.end).toLocaleDateString()}
+                  </div>
+                </>
               )}
             </div>
           )}

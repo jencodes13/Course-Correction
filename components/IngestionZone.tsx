@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Upload, FileType, CheckCircle, ArrowRight, FolderPlus, Image as ImageIcon, Video } from 'lucide-react';
 import { IngestedFile, AppStep } from '../types';
 import { useWorkflow } from '../contexts/WorkflowContext';
+import { useGoogleDrivePicker } from '../hooks/useGoogleDrivePicker';
+import GoogleDriveButton from './GoogleDriveButton';
 
 const DEFAULT_TEXT = `MODULE 4: ELECTRICAL SAFETY STANDARDS (2018 Revision)...`;
 
@@ -48,6 +50,15 @@ const IngestionZone: React.FC = () => {
           Array.from(e.target.files).forEach(processFile);
       }
   };
+
+  const handleDriveFiles = (driveFiles: File[]) => {
+    driveFiles.forEach(processFile);
+  };
+
+  const {
+    openPicker: openDrivePicker,
+    isLoading: isDriveLoading,
+  } = useGoogleDrivePicker({ onFilesSelected: handleDriveFiles });
 
   const handleProjectCreate = () => {
     setGlobalProjectName(projectName || "Untitled Project");
@@ -102,6 +113,19 @@ const IngestionZone: React.FC = () => {
                 </div>
                 </div>
             </label>
+
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1 h-px bg-surface-border" />
+              <span className="text-xs text-text-muted">or</span>
+              <div className="flex-1 h-px bg-surface-border" />
+            </div>
+            <div className="mt-3">
+              <GoogleDriveButton
+                onClick={openDrivePicker}
+                isLoading={isDriveLoading}
+                variant="compact"
+              />
+            </div>
 
             {files.length > 0 && (
                 <div className="mt-4 space-y-2">

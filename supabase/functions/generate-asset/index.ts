@@ -86,6 +86,6 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("Asset generation error:", error);
-    return errorResponse(error.message || "Asset generation failed", 500);
+    return errorResponse("Asset generation failed. Please try again.", 500);
   }
 });

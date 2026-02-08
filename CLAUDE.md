@@ -85,8 +85,12 @@ coursecorrect/
 - Showcases diverse industry examples (Aviation, Healthcare, Legal, etc.)
 
 ### Demo Flow
-- 3-step wizard: Topic → Location → Style → Generated slides
-- Supports file upload (PDF, images)
+- 6-step wizard: Mode → Upload → Sector/Location → Findings Review → Style → Results
+- Two-stage AI: Stage 1 scans course and presents findings as card carousel (approve/skip one at a time)
+- Stage 2 generates slides guided ONLY by approved findings
+- "Free demo finding X of Y" branding + blurred pro teaser pane
+- If no content findings → "Your content is current!" + nudge to design update
+- Supports file upload (PDF, images) with Supabase Storage for large files
 - Geolocation for regional compliance
 
 ### Full App Flow
@@ -136,6 +140,10 @@ All Gemini calls in `geminiService.ts` follow this pattern:
 - [x] AuthGate (Supabase email/password, guards app views)
 - [x] Dark warm theme across all components (including DemoFlow)
 - [x] Demo flow E2E with improved slide parsing
+- [x] Two-stage findings review (scan → approve/skip carousel → guided generation)
+- [x] Prompt injection sanitization (`sanitizeUserInput()` in _shared/gemini.ts)
+- [x] Real usage tracking (Gemini `usageMetadata` pass-through from Edge Functions)
+- [x] Google Cloud Monitoring integration (cloud-metrics Edge Function + dashboard tab)
 - [ ] Working SCORM/xAPI export
 - [ ] Search Grounding + Structured Output for enhanced demo slides (eliminates regex parsing)
 - [ ] Prompt improvements (see Gemini 3 section below)
@@ -189,6 +197,7 @@ npm run build
 2. **Session storage caching**: Generated cards persist in browser tab
 3. **Fallback to static**: If Gemini API fails, gracefully falls back to procedural generation
 4. **Orbital card layout**: Cards arranged in concentric rings around hero with faded outer rings
+5. **Show the magic, not the machinery**: When AI is working, surface the *discoveries* — not the process. Users should see what the AI found ("PDF detected", "Cloud Computing sector", "AWS Solutions Architect"), not how it found it. Think of it like a magician revealing a card, not explaining the trick. Keep it to simple, impressive highlights that make the AI feel smart and the product feel effortless. This is a hackathon demo — every loading state is a chance to build confidence, not overwhelm with detail.
 
 ## Landing Page Content Guidelines
 
@@ -389,6 +398,7 @@ All deployed at: `https://yyqgxzbzdcsjdlxiydyj.supabase.co/functions/v1/`
 | `generate-asset` | Yes | AI image generation |
 | `jurisdiction-lookup` | Yes | Local authority identification |
 | `demo-slides` | No | Demo wizard (public for hackathon) |
+| `cloud-metrics` | No | Google Cloud Monitoring metrics |
 
 ### Database Tables Available
 
@@ -405,3 +415,85 @@ All deployed at: `https://yyqgxzbzdcsjdlxiydyj.supabase.co/functions/v1/`
 - `course-files` - User uploads (private)
 - `generated-assets` - AI images (public)
 - `exports` - SCORM packages (private)
+
+---
+
+## Day 7 Priorities (Feb 8, 2026 — Final Build Day)
+
+**Hackathon deadline: Feb 9.** This is the last day for significant work. Everything below is ordered by impact.
+
+### P0: Demo Slide Design Overhaul (CRITICAL — what judges see)
+
+The generated "slides" are currently walls of text with no visual design. Fix this with a **combined approach**:
+
+1. **HTML/CSS slide layouts** — Each slide rendered as a styled card with:
+   - Real typography hierarchy (large headings, body text, captions)
+   - Color blocks, accent bars, section dividers
+   - Icon integration (Lucide) for bullet points and categories
+   - Layout variety: side-by-side "before/after", hero + bullets, comparison grid
+2. **Gemini image generation** — Each slide gets a hero image generated via `gemini-2.5-flash-image`:
+   - Image prompt derived from slide content (e.g., "modern flat illustration of cloud architecture")
+   - Embedded in the HTML/CSS slide layout
+   - Fallback: gradient placeholder if image gen fails
+3. **Prompt fix** — Update the generation prompt to output structured slide data (layout type, heading, body, image prompt, accent color) rather than raw text. Use `responseSchema` to enforce structure.
+
+**The slide output must look like something you'd present to a client, not a text dump.**
+
+### P1: Landing Page Visual Upgrade
+
+Keep the dark theme but make it **more vibrant and impressive**:
+- Bolder accent colors, gradients, glows
+- More visual punch on the hero section
+- Better card hover effects and animations
+- Consider subtle particle/mesh background or gradient animation
+- The landing page should feel like a premium product, not a developer prototype
+
+**Note**: LandingPage.tsx requires explicit approval before changes.
+
+### P2: Login + Course Management Dashboard
+
+**Login flow:**
+- Add a visible "Sign In" button on the landing page (top-right or in nav)
+- AuthGate already exists with email/password + Google OAuth
+- After login, route to a course management dashboard (not the demo flow)
+
+**Course Management Dashboard (new component):**
+- Real working dashboard connected to Supabase `projects` and `uploaded_files` tables
+- Shows: list of courses with upload date, last analysis date, freshness/engagement scores
+- Actions: upload new course, view analysis, re-run analysis, delete
+- Google Drive integration via existing `useGoogleDrivePicker.ts` hook — import courses from Drive
+- Track changes: what was added/updated/removed, with dates
+
+### P3: Security Hardening
+
+- [x] Prompt injection sanitization (done — `sanitizeUserInput()`)
+- [ ] Verify all Edge Functions that need auth actually check it
+- [ ] Ensure `.env.local` and service account key are in `.gitignore`
+- [ ] Rate limiting on public endpoints (demo-slides, cloud-metrics)
+- [ ] Input validation on all Edge Function request bodies
+- [ ] CSP headers for production build
+
+### P4: Polish & Bug Fixes
+
+- Clear old inaccurate localStorage usage records
+- Test full demo flow end-to-end (upload PDF → findings → approve → generate → slides)
+- Fix any TypeScript strict errors
+- Ensure all Edge Functions are deployed with latest code
+- Performance: lazy-load heavy components, optimize bundle size
+
+### Services & Secrets
+
+| Secret | Location | Status |
+|--------|----------|--------|
+| `GEMINI_API_KEY` | Supabase secrets | Set |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Supabase secrets | Set (cloud-metrics) |
+| `GOOGLE_OAUTH_CLIENT_ID` | Supabase secrets | NOT SET (needed for Google Drive picker) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Supabase secrets | NOT SET |
+
+### Google Drive Integration Notes
+
+The `useGoogleDrivePicker.ts` hook is already implemented. To activate:
+1. Set `VITE_GOOGLE_CLIENT_ID` and `VITE_GOOGLE_API_KEY` in `.env.local`
+2. Enable Google Picker API in GCP console
+3. Add authorized JavaScript origins for your domain
+4. The hook handles OAuth, file selection, and download — wire into course management dashboard
