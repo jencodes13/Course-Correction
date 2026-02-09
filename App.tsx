@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import IngestionZone from './components/IngestionZone';
 import ConfigurationZone from './components/ConfigurationZone';
@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 import LiveAssistant from './components/LiveAssistant';
 import DemoFlow from './components/DemoFlow';
 import ExportView from './components/ExportView';
+import CourseDashboard from './components/CourseDashboard';
 import UsageWidget from './components/UsageWidget';
 import UsageDashboard from './components/UsageDashboard';
 import { AppStep } from './types';
@@ -38,7 +39,17 @@ const AppInner: React.FC = () => {
     isUsageDashboardOpen,
     setIsUsageDashboardOpen,
     resetProject,
+    user,
   } = useWorkflow();
+
+  // OAuth redirect: if user is logged in and on LANDING, redirect to DASHBOARD
+  const hasRedirected = useRef(false);
+  useEffect(() => {
+    if (user && currentStep === AppStep.LANDING && !hasRedirected.current) {
+      hasRedirected.current = true;
+      goToStep(AppStep.DASHBOARD);
+    }
+  }, [user, currentStep, goToStep]);
 
   // Step 2: User configures goals, then we run analysis
   const handleConfiguration = async (config: Parameters<typeof analyzeCourseContent>[2] & { goal: string; targetAudience: string; standardsContext: string; location: string }) => {
@@ -55,6 +66,8 @@ const AppInner: React.FC = () => {
     switch (currentStep) {
       case AppStep.DEMO:
         return <DemoFlow onBack={() => goToStep(AppStep.LANDING)} />;
+      case AppStep.DASHBOARD:
+        return <CourseDashboard />;
       case AppStep.INGESTION:
         return <IngestionZone />;
 
@@ -80,6 +93,7 @@ const AppInner: React.FC = () => {
 
   // Helper for Breadcrumbs
   const getBreadcrumb = () => {
+    if (currentStep === AppStep.DASHBOARD) return 'My Courses';
     if (currentStep === AppStep.INGESTION) return 'New Project';
     if (currentStep === AppStep.CONFIGURATION) return 'Configuration';
     if (currentStep === AppStep.DIAGNOSIS) return 'Overview';
@@ -92,7 +106,7 @@ const AppInner: React.FC = () => {
   if (currentStep === AppStep.LANDING) {
     return (
       <>
-        <LandingPage onStart={() => goToStep(AppStep.DEMO)} />
+        <LandingPage onStart={() => goToStep(AppStep.DEMO)} onSignIn={() => goToStep(AppStep.DASHBOARD)} />
         <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
         {isUsageDashboardOpen && (
           <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
@@ -115,7 +129,7 @@ const AppInner: React.FC = () => {
   }
 
   return (
-    <AuthGate>
+    <AuthGate onBack={() => goToStep(AppStep.LANDING)}>
       <div className="flex min-h-screen bg-background font-sans">
         <Sidebar />
 
@@ -127,7 +141,7 @@ const AppInner: React.FC = () => {
           {/* Modern Header */}
           <header className="h-20 bg-card/80 backdrop-blur-md border-b border-surface-border sticky top-0 z-10 flex items-center justify-between px-8">
               <div className="flex items-center gap-2 text-sm font-medium text-text-muted">
-                  <div className="flex items-center gap-2 hover:text-accent transition-colors cursor-pointer" onClick={() => goToStep(AppStep.INGESTION)}>
+                  <div className="flex items-center gap-2 hover:text-accent transition-colors cursor-pointer" onClick={() => goToStep(AppStep.DASHBOARD)}>
                       <Home className="w-4 h-4" />
                   </div>
                   <ChevronRight className="w-4 h-4 text-text-muted" />

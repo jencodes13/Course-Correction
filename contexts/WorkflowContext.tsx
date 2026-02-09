@@ -26,6 +26,7 @@ interface WorkflowState {
   isLiveActive: boolean;
   isUsageDashboardOpen: boolean;
   user: User | null;
+  currentProjectId: string | null;
 }
 
 interface WorkflowActions {
@@ -42,7 +43,9 @@ interface WorkflowActions {
   setIsLiveActive: (val: boolean) => void;
   setIsUsageDashboardOpen: (val: boolean) => void;
   setUser: (user: User | null) => void;
+  setCurrentProjectId: (id: string | null) => void;
   resetProject: () => void;
+  clearProjectData: () => void;
 }
 
 type WorkflowContextType = WorkflowState & WorkflowActions;
@@ -62,6 +65,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isLiveActive, setIsLiveActive] = useState(false);
   const [isUsageDashboardOpen, setIsUsageDashboardOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   const goToStep = useCallback((step: AppStep) => setCurrentStep(step), []);
 
@@ -77,7 +81,19 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAnalysis(null);
     setRegulatoryUpdates([]);
     setVisualTransformations([]);
+    setCurrentProjectId(null);
     setCurrentStep(AppStep.LANDING);
+  }, []);
+
+  const clearProjectData = useCallback(() => {
+    setProjectName('');
+    setRawContent('');
+    setFiles([]);
+    setProjectConfig(null);
+    setAnalysis(null);
+    setRegulatoryUpdates([]);
+    setVisualTransformations([]);
+    setCurrentProjectId(null);
   }, []);
 
   const value: WorkflowContextType = {
@@ -93,6 +109,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isLiveActive,
     isUsageDashboardOpen,
     user,
+    currentProjectId,
     goToStep,
     setProjectName,
     setRawContent,
@@ -106,7 +123,9 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsLiveActive,
     setIsUsageDashboardOpen,
     setUser,
+    setCurrentProjectId,
     resetProject,
+    clearProjectData,
   };
 
   return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Zap, Paintbrush, UploadCloud, Settings, LogOut, Sliders, Mic } from 'lucide-react';
+import { LayoutDashboard, FileText, Zap, Paintbrush, UploadCloud, Settings, LogOut, Sliders, Mic, FolderOpen } from 'lucide-react';
 import { AppStep } from '../types';
 import { useWorkflow } from '../contexts/WorkflowContext';
 import { signOut } from '../services/supabaseClient';
@@ -18,6 +18,7 @@ const Sidebar: React.FC = () => {
   };
 
   const menuItems = [
+    { id: AppStep.DASHBOARD, label: 'My Courses', icon: FolderOpen },
     { id: AppStep.INGESTION, label: 'Project Files', icon: UploadCloud },
     { id: AppStep.CONFIGURATION, label: 'Configuration', icon: Sliders },
     { id: AppStep.DIAGNOSIS, label: 'Diagnosis', icon: LayoutDashboard },
@@ -50,7 +51,7 @@ const Sidebar: React.FC = () => {
       <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
         {menuItems.map((item) => {
           const isActive = currentStep === item.id;
-          const isDisabled = !projectName && item.id !== AppStep.INGESTION;
+          const isDisabled = !projectName && item.id !== AppStep.INGESTION && item.id !== AppStep.DASHBOARD;
 
           return (
             <button

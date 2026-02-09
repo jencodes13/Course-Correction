@@ -327,6 +327,11 @@ export function useGoogleDrivePicker(
     setIsLoading(true);
     setDownloadProgress([]);
 
+    // Safety timeout — reset loading if OAuth flow doesn't complete in 30s
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 30000);
+
     try {
       // Load scripts in parallel
       await Promise.all([loadGapiScript(), loadGisScript()]);
@@ -336,6 +341,7 @@ export function useGoogleDrivePicker(
         client_id: CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/drive.file',
         callback: (tokenResponse) => {
+          clearTimeout(timeout);
           if (tokenResponse.error) {
             setError(`Google Drive authorization failed: ${tokenResponse.error}`);
             setIsLoading(false);
@@ -344,12 +350,15 @@ export function useGoogleDrivePicker(
           tokenRef.current = tokenResponse.access_token || null;
           if (tokenRef.current) {
             showPicker(tokenRef.current);
+          } else {
+            setIsLoading(false);
           }
         },
       });
 
       tokenClient.requestAccessToken();
     } catch (err) {
+      clearTimeout(timeout);
       console.error('Google Drive Picker error:', err);
       setError('Failed to open Google Drive. Please try again.');
       setIsLoading(false);

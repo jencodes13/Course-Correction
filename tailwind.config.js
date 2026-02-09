@@ -9,11 +9,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Lato', 'sans-serif'],
-        heading: ['Poppins', 'sans-serif'],
-        serif: ['DM Serif Display', 'Instrument Serif', 'serif'],
-        outfit: ['Outfit', 'sans-serif'],
-        jakarta: ['Plus Jakarta Sans', 'sans-serif'],
+        sans: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
+        heading: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
+        serif: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
+        outfit: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
+        jakarta: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
       },
       colors: {
         background: '#0c0b09',

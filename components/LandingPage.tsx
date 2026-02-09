@@ -3,6 +3,7 @@ import { ArrowRight, Shield, Palette, FileText, BarChart3, Award, Search } from 
 
 interface LandingPageProps {
   onStart: () => void;
+  onSignIn?: () => void;
 }
 
 // ─── Design Tokens ───
@@ -25,9 +26,9 @@ const T = {
   greenBorder: 'rgba(106,191,138,0.25)',
   red: '#c27056',
   redMuted: 'rgba(194,112,86,0.12)',
-  serif: "'Instrument Serif', 'Georgia', serif",
-  sans: "'Plus Jakarta Sans', 'Helvetica Neue', sans-serif",
-  mono: "'SF Mono', 'Fira Code', monospace",
+  serif: "'Inter', Helvetica, Arial, sans-serif",
+  sans: "'Inter', Helvetica, Arial, sans-serif",
+  mono: "'Inter', Helvetica, Arial, sans-serif",
 };
 
 // ─── Old Document Side ───
@@ -419,7 +420,7 @@ function FeatureCard({ icon: Icon, title, desc, delay }: {
 }
 
 // ─── Main Landing Page ───
-const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
@@ -533,24 +534,44 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           }}>CourseCorrect</span>
         </div>
 
-        <button onClick={onStart} style={{
-          padding: '9px 22px', borderRadius: 8,
-          border: `1px solid ${T.border}`, background: T.surface,
-          color: T.text, fontSize: 13, fontWeight: 600,
-          fontFamily: T.sans, cursor: 'pointer',
-          transition: 'all 0.2s ease', backdropFilter: 'blur(10px)',
-          letterSpacing: -0.2,
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = T.surfaceHover;
-          e.currentTarget.style.borderColor = T.borderHover;
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = T.surface;
-          e.currentTarget.style.borderColor = T.border;
-        }}>
-          Try the demo
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {onSignIn && (
+            <button onClick={onSignIn} style={{
+              padding: '9px 18px', borderRadius: 8,
+              border: 'none', background: 'transparent',
+              color: T.textMuted, fontSize: 13, fontWeight: 600,
+              fontFamily: T.sans, cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              letterSpacing: -0.2,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = T.accent;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = T.textMuted;
+            }}>
+              Sign In
+            </button>
+          )}
+          <button onClick={onStart} style={{
+            padding: '9px 22px', borderRadius: 8,
+            border: `1px solid ${T.border}`, background: T.surface,
+            color: T.text, fontSize: 13, fontWeight: 600,
+            fontFamily: T.sans, cursor: 'pointer',
+            transition: 'all 0.2s ease', backdropFilter: 'blur(10px)',
+            letterSpacing: -0.2,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = T.surfaceHover;
+            e.currentTarget.style.borderColor = T.borderHover;
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = T.surface;
+            e.currentTarget.style.borderColor = T.border;
+          }}>
+            Try the demo
+          </button>
+        </div>
       </nav>
 
       {/* ═══════════ HERO SECTION ═══════════ */}

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUser, onAuthStateChange, signIn, signUp, signOut, signInWithGoogle } from '../services/supabaseClient';
 import { useWorkflow } from '../contexts/WorkflowContext';
-import { Zap, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Zap, Mail, Lock, User, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 
 interface AuthGateProps {
   children: React.ReactNode;
+  onBack?: () => void;
 }
 
-const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
+const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
   const { user, setUser } = useWorkflow();
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -15,6 +16,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -41,11 +43,18 @@ const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setSubmitting(true);
 
     try {
       if (mode === 'signup') {
-        await signUp(email, password, fullName || undefined);
+        const data = await signUp(email, password, fullName || undefined);
+        // If no session returned, email confirmation is required
+        if (!data.session) {
+          setSuccess('Account created! Check your email to confirm, then sign in.');
+          setMode('signin');
+          return;
+        }
       } else {
         await signIn(email, password);
       }
@@ -74,6 +83,18 @@ const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Back button */}
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm text-text-muted hover:text-accent transition-colors mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to home
+          </button>
+        )}
+
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-gradient-to-br from-accent to-amber-700 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-accent/20">
@@ -164,6 +185,12 @@ const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
             </div>
           </div>
 
+          {success && (
+            <div className="text-sm text-success bg-success/10 border border-success/20 rounded-lg px-3 py-2">
+              {success}
+            </div>
+          )}
+
           {error && (
             <div className="text-sm text-warning bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
               {error}
@@ -192,7 +219,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
           <div className="text-center pt-2">
             <button
               type="button"
-              onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); }}
+              onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setSuccess(''); }}
               className="text-sm text-text-muted hover:text-accent transition-colors"
             >
               {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}

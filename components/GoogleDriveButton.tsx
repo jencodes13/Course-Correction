@@ -18,7 +18,7 @@ const GoogleDriveButton: React.FC<GoogleDriveButtonProps> = ({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || isLoading}
+      disabled={disabled}
       className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-surface-border bg-surface hover:border-accent/30 hover:bg-surface text-text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {isLoading ? (

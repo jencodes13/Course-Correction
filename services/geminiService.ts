@@ -13,7 +13,8 @@ import {
   Citation,
   DemoSlideEnhanced,
   CourseFinding,
-  FindingsScanResult
+  FindingsScanResult,
+  GeneratedTheme
 } from "../types";
 import { recordUsage } from "./usageTracker";
 import { supabase } from "./supabaseClient";
@@ -1147,6 +1148,60 @@ export const generateDemoSlidesEnhanced = async (
   } catch (err) {
     console.warn('Edge Function demo-slides (enhanced) failed, falling back to direct:', err);
     return generateDemoSlidesEnhancedDirect(topic, sector, location, updateMode, style, files);
+  }
+};
+
+// ============================================
+// 10. Theme Generation for Design Mode
+// ============================================
+
+export const generatePresentationTheme = async (
+  questionnaire: {
+    brandPersonality?: string;
+    audience?: string;
+    desiredFeeling?: string;
+    primaryColor?: string;
+  }
+): Promise<GeneratedTheme> => {
+  const startTime = Date.now();
+  const fallbackTheme: GeneratedTheme = {
+    primaryColor: '#2563eb',
+    secondaryColor: '#60a5fa',
+    backgroundColor: '#ffffff',
+    textColor: '#1e293b',
+    mutedTextColor: '#94a3b8',
+    fontSuggestion: 'Inter',
+    layoutStyle: 'geometric',
+    designReasoning: 'A clean, professional default palette.',
+  };
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic: 'theme-generation',
+          action: 'generateTheme',
+          themeQuestionnaire: questionnaire,
+        },
+      })
+    );
+    if (error) throw error;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generatePresentationTheme (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+
+    return {
+      primaryColor: (data as any).primaryColor || fallbackTheme.primaryColor,
+      secondaryColor: (data as any).secondaryColor || fallbackTheme.secondaryColor,
+      backgroundColor: (data as any).backgroundColor || fallbackTheme.backgroundColor,
+      textColor: (data as any).textColor || fallbackTheme.textColor,
+      mutedTextColor: (data as any).mutedTextColor || fallbackTheme.mutedTextColor,
+      fontSuggestion: (data as any).fontSuggestion || fallbackTheme.fontSuggestion,
+      layoutStyle: (data as any).layoutStyle || fallbackTheme.layoutStyle,
+      designReasoning: (data as any).designReasoning || fallbackTheme.designReasoning,
+    };
+  } catch (err) {
+    console.warn('Edge Function theme generation failed, using fallback:', err);
+    return fallbackTheme;
   }
 };
 

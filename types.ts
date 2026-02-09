@@ -1,6 +1,7 @@
 export enum AppStep {
   LANDING = 'LANDING',
   DEMO = 'DEMO',
+  DASHBOARD = 'DASHBOARD',
   INGESTION = 'INGESTION',
   CONFIGURATION = 'CONFIGURATION',
   DIAGNOSIS = 'DIAGNOSIS',
@@ -31,9 +32,14 @@ export interface InferredSector {
 
 export interface SlideContent {
   title: string;
+  subtitle?: string;
   bullets: string[];
   citationIds: number[]; // References to Citation.id
+  keyFact?: string; // A single prominent stat/fact to display large (e.g., "73% reduction in incidents")
+  sourcePageNumber?: number; // 1-based page number from uploaded PDF this slide corresponds to
 }
+
+export type SlideLayoutType = 'hero' | 'two-column' | 'stats-highlight' | 'comparison' | 'timeline';
 
 export interface DemoSlideEnhanced {
   id: string;
@@ -42,8 +48,12 @@ export interface DemoSlideEnhanced {
   changesSummary: string;
   visualStyle: {
     accentColor: string;
-    layout: 'split' | 'stacked' | 'overlay';
+    layout: SlideLayoutType;
+    iconSuggestion?: string; // Lucide icon name (e.g., "shield-check", "book-open")
+    pageClassification?: PageClassification;
   };
+  imagePrompt?: string; // Prompt for Gemini image generation
+  imageUrl?: string; // Generated image URL (populated after generation)
 }
 
 export interface DemoResult {
@@ -127,6 +137,7 @@ export interface FindingsScanResult {
   findings: CourseFinding[];
   searchQueries: string[];
   courseSummary: string;
+  totalEstimatedFindings?: number;
 }
 
 export interface CourseData {
@@ -152,4 +163,28 @@ export interface GeneratedUseCase {
   modernOutput: string;
   color: string;
   icon: string;
+}
+
+// Design Mode — Client-side text extraction + AI theme generation
+
+export type PageClassification = 'TEXT_HEAVY' | 'INFOGRAPHIC' | 'TITLE';
+
+export interface ExtractedPageData {
+  pageNumber: number;
+  classification: PageClassification;
+  title: string;
+  subtitle: string;
+  bullets: string[];
+  textDensityScore: number;
+}
+
+export interface GeneratedTheme {
+  primaryColor: string;
+  secondaryColor: string;
+  backgroundColor: string;
+  textColor: string;
+  mutedTextColor: string;
+  fontSuggestion: string;
+  layoutStyle: string;
+  designReasoning: string;
 }
