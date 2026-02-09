@@ -16,6 +16,7 @@ import { AppStep } from './types';
 import { analyzeCourseContent } from './services/geminiService';
 import { ChevronRight, Home } from 'lucide-react';
 import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import AuthGate from './components/AuthGate';
 
 const AppInner: React.FC = () => {
@@ -186,9 +187,11 @@ const AppInner: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <WorkflowProvider>
-      <AppInner />
-    </WorkflowProvider>
+    <ThemeProvider>
+      <WorkflowProvider>
+        <AppInner />
+      </WorkflowProvider>
+    </ThemeProvider>
   );
 };
 

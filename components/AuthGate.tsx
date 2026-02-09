@@ -97,10 +97,20 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-accent to-amber-700 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-accent/20">
-            <Zap className="text-white w-7 h-7" />
+          <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <defs>
+                <linearGradient id="auth-logo" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#FF6B5B" />
+                  <stop offset="50%" stopColor="#4A3AFF" />
+                  <stop offset="100%" stopColor="#00C9A7" />
+                </linearGradient>
+              </defs>
+              <path d="M 8 34 C 6 24, 12 10, 22 12 C 32 14, 34 26, 26 30 C 18 34, 12 26, 16 18 C 19 12, 26 8, 33 6" stroke="url(#auth-logo)" strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 30 3.5 L 34 6 L 30.5 8.5" stroke="#00C9A7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">CourseCorrect</h1>
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight">Course Correction</h1>
           <p className="text-text-muted text-sm mt-1">
             {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
           </p>

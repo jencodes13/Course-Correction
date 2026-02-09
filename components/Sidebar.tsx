@@ -31,11 +31,21 @@ const Sidebar: React.FC = () => {
     <div className="w-64 bg-card text-text-muted flex flex-col h-screen fixed left-0 top-0 border-r border-surface-border flex-shrink-0 z-20">
       <div className="p-6 border-b border-surface-border">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-accent to-amber-700 rounded-lg flex items-center justify-center shadow-lg shadow-accent/20">
-             <Zap className="text-white w-5 h-5" />
+          <div className="w-8 h-8 flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <defs>
+                <linearGradient id="sidebar-logo" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#FF6B5B" />
+                  <stop offset="50%" stopColor="#4A3AFF" />
+                  <stop offset="100%" stopColor="#00C9A7" />
+                </linearGradient>
+              </defs>
+              <path d="M 8 34 C 6 24, 12 10, 22 12 C 32 14, 34 26, 26 30 C 18 34, 12 26, 16 18 C 19 12, 26 8, 33 6" stroke="url(#sidebar-logo)" strokeWidth="3" strokeLinecap="round" fill="none" />
+              <path d="M 30 3.5 L 34 6 L 30.5 8.5" stroke="#00C9A7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
           </div>
           <div>
-            <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">CourseCorrect</span>
+            <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>
             <span className="text-[10px] uppercase tracking-wider text-text-muted font-medium">Enterprise Edition</span>
           </div>
         </div>

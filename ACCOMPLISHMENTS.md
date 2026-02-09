@@ -1,6 +1,41 @@
-# CourseCorrect — Accomplishments
+# Course Correction — Accomplishments
 
-## February 9, 2026
+## February 9, 2026 (Session 2)
+
+### Complete Design Overhaul: Slide-Based Landing, Light/Dark Theme, New Brand
+
+Overhauled the entire frontend design direction for the hackathon. Renamed "CourseCorrect" to "Course Correction," replaced the generic Zap icon with a custom looping course-correction arrow logo (SVG with coral→indigo→teal gradient), and rebuilt the landing page as a 5-slide scroll-snap presentation.
+
+**What was built:**
+- **Slide-based landing page** — 5 full-viewport scroll-snap sections (Hero, Problem, Two Engines, How It Works, CTA) with dot navigation, keyboard nav (arrow keys), and bottom scroll hint
+- **Light/dark mode** — Full theme system using CSS custom properties with RGB values for Tailwind opacity modifier support. ThemeContext with localStorage persistence. Sun/Moon toggle in nav. All existing components automatically theme-aware via CSS variables
+- **New logo** — Custom SVG looping arrow mark with gradient stroke (coral #FF6B5B → indigo #4A3AFF → teal #00C9A7), replacing the Zap thunderbolt icon across landing page, sidebar, and auth gate
+- **New color palette** — Accent coral #FF6B5B, success teal #00C9A7, indigo #4A3AFF. Light mode: off-white #FAFAF8 background. Dark mode: warm black #0c0b09
+- **Inter font** — Replaced multi-font stack (Lato, Poppins, DM Serif, Plus Jakarta Sans) with single Inter typeface
+- **Brand rename** — "CourseCorrect" → "Course Correction" across all files
+- **Login flow + Dashboard** (from earlier in session) — Sign In button on landing page, AuthGate with back-to-home button, CourseDashboard component with project cards from Supabase, OAuth redirect handling
+- **Archived previous design** — LandingPage.archived.tsx, index.archived.css, tailwind.config.archived.js for easy revert
+
+**Files modified:**
+- `components/LandingPage.tsx` — Complete rewrite: 5-slide scroll-snap layout with new logo, theme toggle, preserved before/after slider
+- `index.css` — CSS custom properties for light/dark themes, scroll-snap utilities, adaptive scrollbar/autofill
+- `tailwind.config.js` — Colors now reference CSS variables with `<alpha-value>` support, `darkMode: 'class'`
+- `contexts/ThemeContext.tsx` — **New** — Theme provider with localStorage persistence
+- `contexts/WorkflowContext.tsx` — Added currentProjectId, clearProjectData
+- `components/CourseDashboard.tsx` — **New** — Course management dashboard with Supabase integration
+- `components/Sidebar.tsx` — New logo SVG, Dashboard nav item, brand rename
+- `components/AuthGate.tsx` — New logo SVG, back button, signup success message, brand rename
+- `App.tsx` — ThemeProvider wrapper, Dashboard routing, OAuth redirect
+- `types.ts` — Added DASHBOARD to AppStep enum
+- `index.html` — Inter font, title rename
+- `components/ExportView.tsx` — Brand rename
+- `components/LocationInput.tsx` — User-Agent rename
+- `services/supabaseClient.ts` — Comment rename
+- Archive files: `LandingPage.archived.tsx`, `index.archived.css`, `tailwind.config.archived.js`
+
+---
+
+## February 9, 2026 (Session 1)
 
 ### Design Mode: Vibe Picker + Canvas Color Remapping
 

@@ -6,7 +6,6 @@ export default {
     "./components/**/*.{js,ts,jsx,tsx}",
     "./services/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
@@ -17,15 +16,15 @@ export default {
         jakarta: ['Inter', 'Helvetica', 'Arial', 'sans-serif'],
       },
       colors: {
-        background: 'rgb(var(--color-background) / <alpha-value>)',
-        card: 'rgb(var(--color-card) / <alpha-value>)',
-        surface: 'rgb(var(--color-surface) / <alpha-value>)',
-        'surface-border': 'rgb(var(--color-surface-border) / <alpha-value>)',
-        'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
-        'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)',
-        accent: 'rgb(var(--color-accent) / <alpha-value>)',
-        success: 'rgb(var(--color-success) / <alpha-value>)',
-        warning: 'rgb(var(--color-warning) / <alpha-value>)',
+        background: '#0c0b09',
+        card: '#1a1914',
+        surface: 'rgba(255,248,230,0.04)',
+        'surface-border': 'rgba(255,248,230,0.08)',
+        'text-primary': '#f5f0e0',
+        'text-muted': 'rgba(245,240,224,0.5)',
+        accent: '#c8956c',
+        success: '#6abf8a',
+        warning: '#c27056',
       },
       keyframes: {
         float: {

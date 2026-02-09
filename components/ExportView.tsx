@@ -35,10 +35,10 @@ const ExportView: React.FC = () => {
 
         <div className="text-xs text-text-muted space-y-4 leading-relaxed border-l-4 border-accent/30 pl-4 mb-8 relative z-10">
             <p>
-                While CourseCorrect utilizes advanced AI and real-time search to aim for the most up-to-date regulatory information, specific codes (e.g., NEC, OSHA, Building Codes) and compliance requirements vary significantly by local jurisdiction and are subject to frequent change.
+                While Course Correction utilizes advanced AI and real-time search to aim for the most up-to-date regulatory information, specific codes (e.g., NEC, OSHA, Building Codes) and compliance requirements vary significantly by local jurisdiction and are subject to frequent change.
             </p>
             <p className="font-bold text-text-primary">
-                CourseCorrect is an assistive tool for Subject Matter Experts. We are not liable for any out-of-date code violations, outdated information, or compliance failures resulting from the use of these materials.
+                Course Correction is an assistive tool for Subject Matter Experts. We are not liable for any out-of-date code violations, outdated information, or compliance failures resulting from the use of these materials.
             </p>
             <p>
                 By downloading, you agree that you aim to provide the most real-time information, but you, the user, assume full and sole responsibility for ensuring all facts, citations, and regulatory interpretations are correct and compliant with your specific local Authority Having Jurisdiction (AHJ) before disseminating this course.

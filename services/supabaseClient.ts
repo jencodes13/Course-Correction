@@ -1,4 +1,4 @@
-// Supabase Client for CourseCorrect
+// Supabase Client for Course Correction
 // Handles authentication, database operations, and storage
 
 import { createClient, SupabaseClient, User } from "@supabase/supabase-js";

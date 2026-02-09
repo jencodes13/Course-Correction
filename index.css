@@ -2,16 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══ Theme Variables ═══ */
+:root {
+  --color-background: 250 250 248;
+  --color-card: 255 255 255;
+  --color-surface: 243 243 240;
+  --color-surface-border: 229 229 227;
+  --color-text-primary: 26 26 26;
+  --color-text-muted: 107 114 128;
+  --color-accent: 255 107 91;
+  --color-success: 0 201 167;
+  --color-warning: 194 112 86;
+}
+
+.dark {
+  --color-background: 12 11 9;
+  --color-card: 26 25 20;
+  --color-surface: 34 32 26;
+  --color-surface-border: 48 46 38;
+  --color-text-primary: 245 240 224;
+  --color-text-muted: 140 135 115;
+  --color-accent: 255 107 91;
+  --color-success: 0 201 167;
+  --color-warning: 194 112 86;
+}
+
 @layer base {
   body {
     @apply bg-background font-sans text-text-primary;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
   h1, h2, h3, h4, h5, h6, button {
     @apply font-heading;
   }
 }
 
-/* Custom scrollbar - dark warm theme */
+/* Scrollbar — adapts to theme */
 @layer utilities {
   .scrollbar-sleek {
     scrollbar-width: thin;
@@ -22,24 +48,24 @@
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #1a1914;
+  background: rgb(var(--color-card));
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255,248,230,0.15);
+  background: rgb(var(--color-surface-border));
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,248,230,0.25);
+  background: rgb(var(--color-text-muted));
 }
 
-/* Override browser autofill styles to match dark theme */
+/* Autofill override — adapts to theme */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px #0c0b09 inset !important;
-  -webkit-text-fill-color: #f5f0e0 !important;
-  caret-color: #f5f0e0 !important;
+  -webkit-box-shadow: 0 0 0 30px rgb(var(--color-background)) inset !important;
+  -webkit-text-fill-color: rgb(var(--color-text-primary)) !important;
+  caret-color: rgb(var(--color-text-primary)) !important;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -49,4 +75,13 @@ input:-webkit-autofill:active {
 }
 .floating-card-shadow:hover {
   @apply -translate-y-1 shadow-floating-card-hover;
+}
+
+/* Scroll snap for landing page slides */
+.slide-container {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+.slide-container > section {
+  scroll-snap-align: start;
 }

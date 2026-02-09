@@ -30,7 +30,7 @@ const LocationInput: React.FC<LocationInputProps> = ({
           // Use free OpenStreetMap Nominatim API for reverse geocoding
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
-            { headers: { 'User-Agent': 'CourseCorrect-App' } }
+            { headers: { 'User-Agent': 'CourseCorrection-App' } }
           );
           const data = await response.json();
 
