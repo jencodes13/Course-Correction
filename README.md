@@ -91,6 +91,10 @@ public/            Static assets and logos
 - Row-Level Security on all database tables
 - Access code gate for full platform (demo is public)
 
+## Demo
+
+[Watch the walkthrough](https://vimeo.com/1163458535)
+
 ## License
 
 MIT
