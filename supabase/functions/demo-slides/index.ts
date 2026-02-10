@@ -1211,7 +1211,8 @@ async function handleFindingsScan(body: DemoRequest): Promise<Response> {
     - Every factual claim must come from either the uploaded course materials or from search results. Do not invent facts, dates, regulation numbers, or statistics.
     - If you cannot determine when the course was created, say "undated" — do not fabricate a year.
     - Do NOT flag regulations unless the course explicitly teaches that regulatory topic.
-    - For technical certification courses, focus on: deprecated services/features, changed best practices, new tools/services, exam blueprint changes.
+    - For technical certification courses, focus on: deprecated services/features, changed best practices, new tools/services that the course teaches.
+    - At most 1 finding may be about exam structure changes (blueprint, format, passing score). The majority of findings (at least 2-3) must be about the actual course CONTENT — outdated facts, deprecated practices, missing knowledge areas, or stale examples being taught.
     - Severity: HIGH = core content is wrong or could cause errors. MEDIUM = content is stale but not incorrect. LOW = nice-to-have improvement.
     - Return the 3-5 most impactful findings. Prioritize findings that are impressive and specific. This is a demo preview.
     - Set totalEstimatedFindings to your honest estimate of HOW MANY TOTAL findings a full deep scan would produce across all categories (outdated, missing, compliance, structural, accessibility, visual design, assessment gaps, etc.). Consider the size and age of the course material. Be realistic — a large course might have 30-80+, a small one might have 10-25.
@@ -1237,12 +1238,7 @@ async function handleFindingsScan(body: DemoRequest): Promise<Response> {
   try {
     parsed = JSON.parse(text);
   } catch {
-    return jsonResponse({
-      findings: [],
-      searchQueries: [],
-      courseSummary: "Unable to analyze course content.",
-      _usage: usageMetadata,
-    });
+    return errorResponse("Failed to parse scan results from Gemini", 502);
   }
 
   return jsonResponse({

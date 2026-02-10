@@ -1545,57 +1545,72 @@ TASK: Identify what needs updating. DO NOT generate slides. Only report findings
 
 Categories: ${categoryInstructions}
 
-Return 3-5 most impactful findings. Every claim must come from course materials or search results. Do not invent facts, dates, or statistics. If course creation date is unknown, say "undated". Focus on the course's primary subject — not tangential topics.
+Return 3-5 most impactful findings. Every claim must come from course materials or search results. Do not invent facts, dates, or statistics. If course creation date is unknown, say "undated". Focus on the course's primary subject — not tangential topics. At most 1 finding about exam structure changes (blueprint, format, passing score). The majority must be about actual course content — outdated facts, deprecated practices, or missing topics.
 
 Set id to "finding-1", "finding-2", etc. category: "outdated"|"missing"|"compliance"|"structural". severity: "high"|"medium"|"low".`
   });
 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: [{ role: 'user', parts }],
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            findings: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  category: { type: Type.STRING },
-                  title: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  severity: { type: Type.STRING },
-                  sourceSnippet: { type: Type.STRING },
-                  currentInfo: { type: Type.STRING },
-                },
-                required: ['id', 'category', 'title', 'description', 'severity'],
-              },
-            },
-            searchQueries: { type: Type.ARRAY, items: { type: Type.STRING } },
-            courseSummary: { type: Type.STRING },
-          },
-          required: ['findings', 'searchQueries', 'courseSummary'],
-        },
-      },
-    });
+  const maxAttempts = 3;
+  let lastError: unknown;
 
-    trackUsage(response, model, 'scanCourseFindings', startTime);
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
-    return {
-      findings: parsed.findings || [],
-      searchQueries: parsed.searchQueries || [],
-      courseSummary: parsed.courseSummary || '',
-    };
-  } catch (error) {
-    console.error('Direct scan findings error:', error);
-    return { findings: [], searchQueries: [], courseSummary: 'Unable to analyze course content.' };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts }],
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              findings: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    severity: { type: Type.STRING },
+                    sourceSnippet: { type: Type.STRING },
+                    currentInfo: { type: Type.STRING },
+                  },
+                  required: ['id', 'category', 'title', 'description', 'severity'],
+                },
+              },
+              searchQueries: { type: Type.ARRAY, items: { type: Type.STRING } },
+              courseSummary: { type: Type.STRING },
+            },
+            required: ['findings', 'searchQueries', 'courseSummary'],
+          },
+        },
+      });
+
+      trackUsage(response, model, 'scanCourseFindings', startTime);
+      const text = response.text || '{}';
+      const parsed = JSON.parse(text);
+      return {
+        findings: parsed.findings || [],
+        searchQueries: parsed.searchQueries || [],
+        courseSummary: parsed.courseSummary || '',
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn(`Direct scan attempt ${attempt}/${maxAttempts} failed:`, error);
+
+      // Don't retry on 4xx client errors
+      const status = (error as any)?.status || (error as any)?.httpStatusCode;
+      if (status && status >= 400 && status < 500) break;
+
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+      }
+    }
   }
+
+  throw lastError;
 }
 
 export const generateDemoSlidesEnhanced = async (
