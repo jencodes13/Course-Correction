@@ -3,8 +3,6 @@ import { getCurrentUser, onAuthStateChange, signIn, signUp, signOut, signInWithG
 import { useWorkflow } from '../contexts/WorkflowContext';
 import { Mail, Lock, User, ArrowRight, ArrowLeft, Loader2, KeyRound } from 'lucide-react';
 
-const ACCESS_STORAGE_KEY = 'coursecorrect_access_verified';
-
 interface AuthGateProps {
   children: React.ReactNode;
   onBack?: () => void;
@@ -23,9 +21,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack, onDemo }) => {
   const [submitting, setSubmitting] = useState(false);
 
   // Access code gate — skip if user chooses email login
-  const [accessVerified, setAccessVerified] = useState(() => {
-    return localStorage.getItem(ACCESS_STORAGE_KEY) === 'true';
-  });
+  const [accessVerified, setAccessVerified] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [accessCode, setAccessCode] = useState('');
   const [accessError, setAccessError] = useState('');
@@ -55,7 +51,6 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack, onDemo }) => {
     e.preventDefault();
     const validCode = import.meta.env.VITE_ACCESS_CODE || '';
     if (validCode && accessCode.trim().toUpperCase() === validCode.toUpperCase()) {
-      localStorage.setItem(ACCESS_STORAGE_KEY, 'true');
       setAccessVerified(true);
       setAccessError('');
     } else {

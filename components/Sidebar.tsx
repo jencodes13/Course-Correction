@@ -22,8 +22,8 @@ const Sidebar: React.FC = () => {
     { id: AppStep.INGESTION, label: 'Project Files', icon: UploadCloud },
     { id: AppStep.CONFIGURATION, label: 'Configuration', icon: Sliders },
     { id: AppStep.DIAGNOSIS, label: 'Diagnosis', icon: LayoutDashboard },
-    { id: AppStep.REGULATORY, label: 'Regulatory Hound', icon: FileText },
-    { id: AppStep.VISUAL, label: 'Visual Alchemist', icon: Paintbrush },
+    { id: AppStep.REGULATORY, label: 'Information Refresh', icon: FileText },
+    { id: AppStep.VISUAL, label: 'Visual Update', icon: Paintbrush },
     { id: AppStep.EXPORT, label: 'Export Package', icon: Zap },
   ];
 
@@ -36,7 +36,7 @@ const Sidebar: React.FC = () => {
           </div>
           <div className="text-left">
             <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>
-            <span className="text-[10px] uppercase tracking-wider text-text-muted font-medium">Enterprise Edition</span>
+            <span className="text-[10px] uppercase tracking-wider text-accent font-semibold">Beta</span>
           </div>
         </button>
       </div>
@@ -78,11 +78,12 @@ const Sidebar: React.FC = () => {
 
       <div className="p-4 border-t border-surface-border space-y-1">
         <button
-            onClick={() => setIsLiveActive(true)}
-            className="flex items-center gap-3 px-3 py-3 text-sm text-background font-bold bg-success hover:bg-success/90 w-full rounded-lg transition-all shadow-lg shadow-success/20 mb-2"
+            disabled
+            className="flex items-center gap-3 px-3 py-3 text-sm font-bold bg-surface text-text-muted w-full rounded-lg cursor-not-allowed opacity-50 mb-2"
         >
           <Mic className="w-4 h-4" />
           <span>Voice Consultant</span>
+          <span className="ml-auto text-[9px] uppercase tracking-wider font-semibold">Coming Soon</span>
         </button>
         {user && (
           <div className="px-3 py-2 mb-1">
