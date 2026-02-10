@@ -1001,10 +1001,94 @@ export const generateStudyGuide = async (
     recordUsage('gemini-3-flash-preview', 'generateStudyGuide (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
     return { sections: (data as any).sections || [] };
   } catch (err) {
-    console.error('[generateStudyGuide] Failed:', err);
-    return { sections: [] };
+    console.warn('[generateStudyGuide] Edge function failed, falling back to direct:', err);
+    return generateStudyGuideDirect(topic, sector, files);
   }
 };
+
+// Study Guide — Direct API Fallback
+async function generateStudyGuideDirect(
+  topic: string,
+  sector: string,
+  files: IngestedFile[]
+): Promise<StudyGuideResult> {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
+  try {
+    const parts: any[] = [];
+    const hasFiles = files.length > 0;
+
+    files.forEach(file => {
+      if (!file.data) return;
+      const base64Data = file.data.split(',')[1] || file.data;
+      parts.push({ inlineData: { mimeType: file.type, data: base64Data } });
+    });
+
+    parts.push({
+      text: `Create a comprehensive study guide ${hasFiles ? 'for this course material' : 'for a course on this topic'}.
+
+<user_content>
+Topic: "${topic}"
+Industry: ${sector}
+</user_content>
+
+TASK: Generate 8-12 well-structured sections for a study guide ${hasFiles ? 'based on the uploaded course materials' : `about "${topic}" in the ${sector} sector. Use your knowledge of this subject to create educational content.`}.
+
+For each section provide:
+- title: A clear, descriptive heading for the section
+- summary: One sentence describing what this section covers
+- keyPoints: 3-5 key points, each a COMPLETE, SPECIFIC sentence that teaches something. Include specific facts, numbers, tools, processes, or concepts${hasFiles ? ' from the course' : ''}.
+- takeaway: One sentence capturing the single most important concept from this section
+
+CRITICAL CONSTRAINTS (follow exactly):
+- Every key point MUST be a complete, meaningful sentence — NOT a keyword list, NOT a word dump
+- ${hasFiles ? 'Extract REAL content, facts, and concepts from the uploaded documents' : 'Use accurate, current knowledge about this subject to create educational content'}
+- Each key point should teach something specific and actionable
+- Sections should follow a logical learning progression
+- If the materials are about a certification, organize by exam domains/objectives
+- If a section covers tools or services, name them specifically
+- Do NOT generate generic filler like "Understanding the basics of cloud computing"
+- DO generate specific content like "Amazon S3 provides 11 9s (99.999999999%) of data durability across multiple Availability Zones"`
+    });
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user' as const, parts }],
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            sections: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  summary: { type: Type.STRING },
+                  keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  takeaway: { type: Type.STRING },
+                },
+                required: ['title', 'summary', 'keyPoints', 'takeaway'],
+              },
+            },
+          },
+          required: ['sections'],
+        },
+        maxOutputTokens: 8192,
+      },
+    });
+
+    trackUsage(response, model, 'generateStudyGuideDirect', startTime);
+    const parsed = JSON.parse(response.text || '{}');
+    return { sections: parsed.sections || [] };
+  } catch (error) {
+    console.error('[generateStudyGuideDirect] Failed:', error);
+    return { sections: [] };
+  }
+}
 
 // ============================================
 // AI Slide Content Generation
@@ -1068,10 +1152,218 @@ export const generateSlideContent = async (
       disclaimer: (data as any).disclaimer || undefined,
     };
   } catch (err) {
-    console.error('[generateSlideContent] Failed:', err);
-    return { slides: [] };
+    console.warn('[generateSlideContent] Edge function failed, falling back to direct:', err);
+    return generateSlideContentDirect(topic, sector, files, themePreferences);
   }
 };
+
+// Slide Content — Direct API Fallback
+async function generateSlideContentDirect(
+  topic: string,
+  sector: string,
+  files: IngestedFile[],
+  themePreferences?: { name: string; description: string },
+): Promise<SlideContentResult> {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
+  try {
+    const parts: any[] = [];
+    const hasFiles = files.length > 0;
+
+    files.forEach(file => {
+      if (!file.data) return;
+      const base64Data = file.data.split(',')[1] || file.data;
+      parts.push({ inlineData: { mimeType: file.type, data: base64Data } });
+    });
+
+    parts.push({
+      text: `Create a 10-15 slide presentation deck ${hasFiles ? 'from this course material' : 'for a course on this topic'}.
+
+<user_content>
+Topic: "${topic}"
+Industry: ${sector}
+</user_content>
+
+TASK: Generate structured slide content. Each slide should have a clear purpose and contain specific, fact-rich content ${hasFiles ? 'extracted from the uploaded materials' : `about "${topic}" in the ${sector} sector`}.
+
+For each slide provide:
+- title: A clear, engaging slide title
+- subtitle: Optional subtitle or section label
+- bullets: 3-5 specific, fact-rich bullet points. Each must contain a concrete detail, number, process name, or technical term.
+- keyFact: The single most important stat or fact on this slide (a number, percentage, or 2-4 word metric). Leave empty if no standout stat.
+- layoutSuggestion: One of "hero" (for intro/impact slides), "two-column" (for comparisons), "stats-highlight" (for data-heavy), "comparison" (for before/after), "timeline" (for sequential processes)
+- sourceContext: Brief note on what part of the source material this slide covers
+
+After generating slides, provide dataVerification:
+- totalSourcePages: Total pages in the uploaded material (estimate if not a PDF)
+- pagesReferenced: How many source pages contributed to slides
+- coveragePercentage: Percentage of source material covered (0-100)
+- missingTopics: Important topics from the source that were NOT included in the slides
+
+CRITICAL CONSTRAINTS (follow exactly):
+- ${hasFiles ? 'Extract REAL content from the uploaded materials — do not invent facts' : 'Use accurate, current knowledge about this subject'}
+- Every bullet must contain a specific fact, number, tool name, or technical detail — NOT generic statements
+- Vary layoutSuggestion across slides — do not use the same layout for every slide
+- First slide should use "hero" layout
+- Include a mix of conceptual, technical, and applied content
+- Do NOT generate generic filler like "Understanding the basics"
+- DO generate specific content like "Amazon S3 provides 11 9s (99.999999999%) of data durability"
+- If the source material contains a copyright notice, disclaimer, or distribution restriction, extract it verbatim into the disclaimer field`
+    });
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user' as const, parts }],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            slides: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  subtitle: { type: Type.STRING },
+                  bullets: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  keyFact: { type: Type.STRING },
+                  layoutSuggestion: { type: Type.STRING },
+                  sourceContext: { type: Type.STRING },
+                },
+              },
+            },
+            dataVerification: {
+              type: Type.OBJECT,
+              properties: {
+                totalSourcePages: { type: Type.NUMBER },
+                pagesReferenced: { type: Type.NUMBER },
+                coveragePercentage: { type: Type.NUMBER },
+                missingTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+              },
+            },
+            disclaimer: { type: Type.STRING },
+          },
+          required: ['slides'],
+        },
+        maxOutputTokens: 8192,
+      },
+    });
+
+    trackUsage(response, model, 'generateSlideContentDirect', startTime);
+    const parsed = JSON.parse(response.text || '{}');
+    return {
+      slides: parsed.slides || [],
+      dataVerification: parsed.dataVerification,
+      disclaimer: parsed.disclaimer || undefined,
+    };
+  } catch (error) {
+    console.error('[generateSlideContentDirect] Failed:', error);
+    return { slides: [] };
+  }
+}
+
+// Quiz Questions — Direct API Fallback
+async function generateQuizQuestionsDirect(
+  topic: string,
+  sector: string,
+  files: IngestedFile[],
+  studyGuideSections?: StudyGuideSection[]
+): Promise<QuizResult> {
+  const startTime = Date.now();
+  const model = 'gemini-3-flash-preview';
+
+  try {
+    const parts: any[] = [];
+    const hasFiles = files.length > 0;
+    const hasStudyGuide = studyGuideSections && studyGuideSections.length > 0;
+
+    files.forEach(file => {
+      if (!file.data) return;
+      const base64Data = file.data.split(',')[1] || file.data;
+      parts.push({ inlineData: { mimeType: file.type, data: base64Data } });
+    });
+
+    let studyGuideContext = '';
+    if (hasStudyGuide) {
+      studyGuideContext = '\n\nSTUDY GUIDE SECTIONS (generate questions covering these topics):\n' +
+        studyGuideSections!.map((s, i) =>
+          `${i + 1}. ${s.title}: ${s.keyPoints.join('; ')}`
+        ).join('\n');
+    }
+
+    parts.push({
+      text: `Create an exam-prep quiz ${hasFiles ? 'based on this course material' : 'for a course on this topic'}.
+
+<user_content>
+Topic: "${topic}"
+Industry: ${sector}
+</user_content>
+
+TASK: ${hasStudyGuide ? 'Generate questions that test the key concepts from the study guide sections below.' : hasFiles ? 'Scan the course materials and identify the most important concepts, services, and facts that would appear on the certification exam or final assessment.' : `Create quiz questions about "${topic}" in the ${sector} sector based on common exam topics and key concepts.`} Generate 10-15 multiple-choice questions testing these high-value topics.
+${studyGuideContext}
+
+Every question must have:
+- id: Sequential number starting at 1
+- type: Always "multiple-choice"
+- topic: A short label (2-4 words) identifying the specific subject area being tested (e.g. "AWS ECS", "VPC Networking", "IAM Policies", "S3 Storage Classes", "Fall Protection", "HIPAA Privacy Rule"). This appears as a tag on the question card.
+- question: A clear, specific question
+- options: Exactly 4 answer choices
+- correctAnswer: Must EXACTLY match one of the 4 options
+- explanation: 1-2 sentences explaining WHY this is correct and what makes the distractors wrong
+
+CRITICAL CONSTRAINTS (follow exactly):
+- Focus on what matters for the exam: key services, core concepts, common gotchas, best practices
+- Questions should test real understanding, not just vocabulary recognition
+- Distractors must be plausible — use real service names, real concepts, real numbers that are close but wrong
+- Range from basic recall ("Which service does X?") to scenario-based application ("A company needs to... which solution?")
+- topic labels should be specific: "EC2 Auto Scaling" not just "AWS", "OSHA 1910.134" not just "Safety"
+- ${hasFiles ? 'Every question must relate directly to content in the uploaded course materials' : 'Every question must relate directly to key concepts and common exam topics for this subject'}
+- Do NOT generate questions about tangential topics not covered in the ${hasFiles ? 'course' : 'subject area'}
+- Explanations should teach — help the student understand the concept, not just confirm the answer
+- Assign sequential id values starting at 1`
+    });
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user' as const, parts }],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            questions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.NUMBER },
+                  type: { type: Type.STRING },
+                  topic: { type: Type.STRING },
+                  question: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctAnswer: { type: Type.STRING },
+                  explanation: { type: Type.STRING },
+                },
+                required: ['id', 'type', 'topic', 'question', 'options', 'correctAnswer', 'explanation'],
+              },
+            },
+          },
+          required: ['questions'],
+        },
+        maxOutputTokens: 8192,
+      },
+    });
+
+    trackUsage(response, model, 'generateQuizQuestionsDirect', startTime);
+    const parsed = JSON.parse(response.text || '{}');
+    return { questions: parsed.questions || [] };
+  } catch (error) {
+    console.error('[generateQuizQuestionsDirect] Failed:', error);
+    return { questions: [] };
+  }
+}
 
 // ============================================
 // Infographic Slide Selection (Gemini Reasoning)
@@ -1177,8 +1469,8 @@ export const generateQuizQuestions = async (
     recordUsage('gemini-3-flash-preview', 'generateQuizQuestions (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
     return { questions: (data as any).questions || [] };
   } catch (err) {
-    console.error('[generateQuizQuestions] Failed:', err);
-    return { questions: [] };
+    console.warn('[generateQuizQuestions] Edge function failed, falling back to direct:', err);
+    return generateQuizQuestionsDirect(topic, sector, files, studyGuideSections);
   }
 };
 

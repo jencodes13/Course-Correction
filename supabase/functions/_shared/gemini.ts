@@ -109,17 +109,34 @@ export async function callGemini(
     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
   ];
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const MAX_RETRIES = 2;
+  let response: Response | undefined;
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) break;
+
+    // Retry on 429 (rate limit) and 503 (overloaded) only
+    if ((response.status === 429 || response.status === 503) && attempt < MAX_RETRIES) {
+      const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+      console.warn(`Gemini API returned ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
     const errorText = await response.text();
     throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+  }
+
+  if (!response || !response.ok) {
+    throw new Error("Gemini API error: no successful response after retries");
   }
 
   const data: GeminiResponse = await response.json();
