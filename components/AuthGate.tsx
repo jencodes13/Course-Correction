@@ -99,8 +99,8 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack, onDemo }) => {
     );
   }
 
-  // Already authenticated — pass through
-  if (user) {
+  // Already authenticated — pass through (logged in OR valid access code)
+  if (user || accessVerified) {
     return <>{children}</>;
   }
 
