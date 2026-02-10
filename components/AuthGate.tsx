@@ -120,7 +120,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
 
           <div className="text-center mb-8">
             <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <img src="/public/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
+              <img src="/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
             </div>
             <h1 className="text-2xl font-bold text-text-primary tracking-tight">Course Correction</h1>
             <p className="text-text-muted text-sm mt-2 max-w-xs mx-auto">
@@ -187,7 +187,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
-            <img src="/public/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
+            <img src="/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
           </div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">Course Correction</h1>
           <p className="text-text-muted text-sm mt-1">

@@ -9,7 +9,7 @@ interface LandingPageProps {
 
 // ─── Logo Image ───
 function LogoMark({ size = 36 }: { size?: number }) {
-  return <img src="/public/logo-cropped.png" alt="Course Correction" width={size} height={size} className="inline-block" style={{ objectFit: 'contain' }} />;
+  return <img src="/logo-cropped.png" alt="Course Correction" width={size} height={size} className="inline-block" style={{ objectFit: 'contain' }} />;
 }
 
 // ─── Slide Thumbnail Navigator (left rail) ───

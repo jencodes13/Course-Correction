@@ -21,6 +21,8 @@ import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import AuthGate from './components/AuthGate';
 
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
+
 const AppInner: React.FC = () => {
   const {
     currentStep,
@@ -45,6 +47,7 @@ const AppInner: React.FC = () => {
     user,
   } = useWorkflow();
   const { theme, toggleTheme } = useTheme();
+  const isAdmin = ADMIN_EMAIL && user?.email === ADMIN_EMAIL;
 
   // OAuth redirect: if user is logged in and on LANDING, redirect to DASHBOARD
   const hasRedirected = useRef(false);
@@ -121,9 +124,13 @@ const AppInner: React.FC = () => {
           <Lightbulb className="w-4 h-4" />
           How It Works
         </button>
-        <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
-        {isUsageDashboardOpen && (
-          <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+        {isAdmin && (
+          <>
+            <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+            {isUsageDashboardOpen && (
+              <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+            )}
+          </>
         )}
       </>
     );
@@ -134,9 +141,13 @@ const AppInner: React.FC = () => {
     return (
       <>
         <ArchitecturePage onBack={() => goToStep(AppStep.LANDING)} />
-        <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
-        {isUsageDashboardOpen && (
-          <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+        {isAdmin && (
+          <>
+            <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+            {isUsageDashboardOpen && (
+              <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+            )}
+          </>
         )}
       </>
     );
@@ -149,7 +160,7 @@ const AppInner: React.FC = () => {
           {/* Floating logo nav */}
           <div className="fixed top-5 left-8 z-50 flex items-center gap-3 px-4 py-2.5 rounded-full bg-card/80 backdrop-blur-xl border border-surface-border/60 shadow-lg">
             <button onClick={() => goToStep(AppStep.LANDING)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <img src="/public/logo-cropped.png" alt="Course Correction" width={30} height={30} style={{ objectFit: 'contain' }} />
+              <img src="/logo-cropped.png" alt="Course Correction" width={30} height={30} style={{ objectFit: 'contain' }} />
               <span className="text-sm font-bold text-text-primary tracking-tight">Course Correction</span>
             </button>
             <div className="w-px h-4 bg-surface-border/60" />
@@ -162,9 +173,13 @@ const AppInner: React.FC = () => {
             </button>
           </div>
           {renderContent()}
-          <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
-          {isUsageDashboardOpen && (
-            <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+          {isAdmin && (
+            <>
+              <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+              {isUsageDashboardOpen && (
+                <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+              )}
+            </>
           )}
         </>
       );
@@ -216,10 +231,14 @@ const AppInner: React.FC = () => {
           </div>
         </main>
 
-        {/* Usage Widget & Dashboard - available on all app views */}
-        <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
-        {isUsageDashboardOpen && (
-          <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+        {/* Usage Widget & Dashboard - admin only */}
+        {isAdmin && (
+          <>
+            <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+            {isUsageDashboardOpen && (
+              <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+            )}
+          </>
         )}
       </div>
     </AuthGate>

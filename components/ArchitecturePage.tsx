@@ -152,7 +152,7 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
           </button>
           <div className="w-px h-4 bg-surface-border/60" />
           <button onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <img src="/public/logo-cropped.png" alt="Course Correction" width={30} height={30} style={{ objectFit: 'contain' }} />
+            <img src="/logo-cropped.png" alt="Course Correction" width={30} height={30} style={{ objectFit: 'contain' }} />
             <span className="text-sm font-bold text-text-primary tracking-tight">Course Correction</span>
           </button>
           <div className="w-px h-4 bg-surface-border/60" />

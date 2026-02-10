@@ -958,16 +958,24 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
         });
       });
 
-      // Wait for study guide to finish before launching quiz
+      // Wait for study guide to finish before launching quiz (but don't block if it failed)
       await studyGuidePromise;
 
-      // Launch quiz agent WITH study guide sections as context
+      // Launch quiz agent — uses study guide sections if available, falls back to topic-only
       const quizPromise = launchAgent('quiz-agent', 0, async () => {
         console.log('[Quiz Agent] Calling generateQuizQuestions with', studyGuideSections.length, 'study guide sections...');
-        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections);
+        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections.length > 0 ? studyGuideSections : undefined);
         console.log('[Quiz Agent] Result:', qResult.questions.length, 'questions');
         if (qResult.questions.length === 0) {
-          throw new Error('Quiz returned 0 questions — API may have failed');
+          // Retry once without study guide context
+          console.warn('[Quiz Agent] 0 questions, retrying without study guide...');
+          const retry = await generateQuizQuestions(topic, selectedSector, files);
+          if (retry.questions.length === 0) {
+            throw new Error('Quiz returned 0 questions after retry');
+          }
+          setPreGeneratedQuiz(retry.questions);
+          updateAgent('quiz-agent', { result: `${retry.questions.length} questions created` });
+          return;
         }
         setPreGeneratedQuiz(qResult.questions);
         updateAgent('quiz-agent', {
@@ -1122,12 +1130,20 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
         updateAgent('slide-deck-agent', { result: `${scResult.slides.length} slides + infographic` });
       });
 
-      // Wait for study guide to finish, then launch quiz with study guide context
+      // Wait for study guide to finish, then launch quiz (falls back to topic-only if study guide failed)
       await studyGuidePromise;
 
       const quizPromise = launchAgentFull('quiz-agent', 0, async () => {
-        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections);
-        if (qResult.questions.length === 0) throw new Error('Quiz returned 0 questions');
+        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections.length > 0 ? studyGuideSections : undefined);
+        if (qResult.questions.length === 0) {
+          // Retry once without study guide context
+          const retry = await generateQuizQuestions(topic, selectedSector, files);
+          if (retry.questions.length === 0) throw new Error('Quiz returned 0 questions after retry');
+          setPreGeneratedQuiz(retry.questions);
+          setQuizResults(retry.questions);
+          updateAgent('quiz-agent', { result: `${retry.questions.length} questions created` });
+          return;
+        }
         setPreGeneratedQuiz(qResult.questions);
         setQuizResults(qResult.questions);
         updateAgent('quiz-agent', { result: `${qResult.questions.length} questions created` });

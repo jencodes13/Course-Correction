@@ -32,7 +32,7 @@ const Sidebar: React.FC = () => {
       <div className="p-6 border-b border-surface-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 flex items-center justify-center">
-            <img src="/public/logo-cropped.png" alt="Course Correction" width={36} height={36} style={{ objectFit: 'contain' }} />
+            <img src="/logo-cropped.png" alt="Course Correction" width={36} height={36} style={{ objectFit: 'contain' }} />
           </div>
           <div>
             <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>

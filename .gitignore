@@ -23,6 +23,11 @@ service-account*.json
 *.ppt
 *.docx
 
+# Claude Code config and docs
+CLAUDE.md
+ACCOMPLISHMENTS.md
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
