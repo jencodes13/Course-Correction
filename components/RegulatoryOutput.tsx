@@ -39,6 +39,7 @@ interface RegulatoryOutputProps {
   selectedSector: string;
   location: string;
   topic: string;
+  presentationTitle?: string;
   updateMode: UpdateMode;
   onReset: () => void;
   verificationResults?: VerifiedFinding[];
@@ -1622,6 +1623,7 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
   selectedSector,
   location,
   topic,
+  presentationTitle,
   updateMode,
   onReset,
   verificationResults,

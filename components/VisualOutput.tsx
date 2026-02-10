@@ -35,6 +35,7 @@ interface VisualOutputProps {
   selectedSector: string;
   location: string;
   topic: string;
+  presentationTitle?: string;
   files: IngestedFile[];
   onReset: () => void;
   preGeneratedStudyGuide?: StudyGuideSection[];
@@ -607,6 +608,7 @@ const PREVIEW_SECTION_COUNT = 3;
 
 function StudyGuideTab({
   topic,
+  displayTitle,
   sector,
   files,
   theme,
@@ -614,6 +616,7 @@ function StudyGuideTab({
   preGeneratedSections,
 }: {
   topic: string;
+  displayTitle?: string;
   sector: string;
   files: IngestedFile[];
   theme: GeneratedTheme | null;
@@ -734,7 +737,7 @@ function StudyGuideTab({
             </p>
           </div>
           <h3 className="text-2xl font-bold leading-tight" style={{ color: '#1a1a1a', fontFamily: `${font}, system-ui, sans-serif` }}>
-            {topic || 'Course Materials'}
+            {displayTitle || topic || 'Course Materials'}
           </h3>
           <p className="text-xs mt-1" style={{ color: '#6b7280' }}>
             {sector} &middot; {sections.length} section{sections.length !== 1 ? 's' : ''} &middot; {new Date().toLocaleDateString()}
@@ -1647,6 +1650,7 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
   selectedSector,
   location,
   topic,
+  presentationTitle,
   files,
   onReset,
   preGeneratedStudyGuide,
@@ -1655,6 +1659,7 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
   slideVerification,
   disclaimer,
 }) => {
+  const displayTitle = presentationTitle || topic;
   const [activeTab, setActiveTab] = useState<VisualTab>('document');
   const [isDownloading, setIsDownloading] = useState(false);
   const studyGuideSectionsRef = useRef<StudyGuideSection[]>([]);
@@ -1676,8 +1681,8 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
       if (activeTab === 'study-guide') {
         const sections = studyGuideSectionsRef.current;
         if (sections.length === 0) return;
-        const html = generateStudyGuideHTML(sections, generatedTheme, topic, selectedSector);
-        triggerDownload(html, `${(topic || 'study-guide').replace(/[^a-zA-Z0-9-_ ]/g, '').slice(0, 60)}-study-guide.html`);
+        const html = generateStudyGuideHTML(sections, generatedTheme, displayTitle, selectedSector);
+        triggerDownload(html, `${(displayTitle || 'study-guide').replace(/[^a-zA-Z0-9-_ ]/g, '').slice(0, 60)}-study-guide.html`);
       } else if (activeTab === 'slides') {
         // Use AI-generated slides for PPTX when available
         const pptxPages = preGeneratedSlides && preGeneratedSlides.length > 0
@@ -1690,17 +1695,17 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
               classification: 'TEXT_HEAVY' as const,
             }))
           : extractedPages;
-        await generatePptx(pptxPages, result.slides, generatedTheme, topic, selectedSector);
+        await generatePptx(pptxPages, result.slides, generatedTheme, displayTitle, selectedSector);
       } else if (activeTab === 'quiz') {
         const qs = quizQuestionsRef.current;
         if (qs.length === 0) return;
-        const html = generateQuizHTML(qs, topic, selectedSector);
-        triggerDownload(html, `${(topic || 'quiz').replace(/[^a-zA-Z0-9-_ ]/g, '').slice(0, 60)}-quiz.html`);
+        const html = generateQuizHTML(qs, displayTitle, selectedSector);
+        triggerDownload(html, `${(displayTitle || 'quiz').replace(/[^a-zA-Z0-9-_ ]/g, '').slice(0, 60)}-quiz.html`);
       }
     } finally {
       setIsDownloading(false);
     }
-  }, [activeTab, extractedPages, result.slides, generatedTheme, topic, selectedSector]);
+  }, [activeTab, extractedPages, result.slides, generatedTheme, displayTitle, selectedSector]);
 
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-y-auto">
@@ -1717,7 +1722,7 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
               Design Refresh — New Materials
             </p>
             <h2 className="text-3xl md:text-4xl font-heading font-bold text-text-primary leading-tight mb-2">
-              {topic || 'Course materials ready'}
+              {displayTitle || 'Course materials ready'}
             </h2>
             <p className="text-text-muted text-sm">
               {selectedSector} &middot; {location || 'United States'}
@@ -1793,6 +1798,7 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
           {activeTab === 'study-guide' && (
             <StudyGuideTab
               topic={topic}
+              displayTitle={displayTitle}
               sector={selectedSector}
               files={files}
               theme={generatedTheme}
@@ -1805,7 +1811,7 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
               pages={extractedPages}
               slides={result.slides}
               theme={generatedTheme}
-              topic={topic}
+              topic={displayTitle}
               sector={selectedSector}
               preGeneratedSlides={preGeneratedSlides}
               disclaimer={disclaimer}

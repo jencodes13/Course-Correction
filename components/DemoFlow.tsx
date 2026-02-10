@@ -3429,6 +3429,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 selectedSector={selectedSector}
                 location={location}
                 topic={topic}
+                presentationTitle={courseSummaryResult?.courseTitle || topic}
                 updateMode={updateMode}
                 onReset={resetAll}
                 verificationResults={verificationResults}
@@ -3442,6 +3443,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 selectedSector={selectedSector}
                 location={location}
                 topic={topic}
+                presentationTitle={courseSummaryResult?.courseTitle || topic}
                 files={files}
                 onReset={resetAll}
                 preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
@@ -3467,6 +3469,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
             selectedSector={selectedSector}
             location={location}
             topic={topic}
+            presentationTitle={courseSummaryResult?.courseTitle || topic}
             updateMode={updateMode}
             onReset={resetAll}
             verificationResults={verificationResults}
@@ -3484,6 +3487,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
           selectedSector={selectedSector}
           location={location}
           topic={topic}
+          presentationTitle={courseSummaryResult?.courseTitle || topic}
           files={files}
           onReset={resetAll}
           preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
