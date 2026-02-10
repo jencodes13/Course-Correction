@@ -1,7 +1,5 @@
 # Course Correction
 
-**The self-healing engine for your entire course library.**
-
 Course Correction is an AI-powered course modernization platform that solves a universal pain point in corporate training: **course decay**. Courses become obsolete the moment they're published — regulations update, best practices evolve, and designs go stale.
 
 Upload any course file and Course Correction's AI agents scan it in parallel, identify what's outdated, and generate modernized content ready for review.
