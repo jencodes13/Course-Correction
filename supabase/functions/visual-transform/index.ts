@@ -92,6 +92,7 @@ ${body.content}`;
       {
         systemInstruction: systemPrompt,
         responseSchema: VISUAL_SCHEMA,
+        maxOutputTokens: 8192,
       }
     );
 

@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import {
   AnalysisMetrics,
   RegulatoryUpdate,
@@ -14,10 +14,20 @@ import {
   DemoSlideEnhanced,
   CourseFinding,
   FindingsScanResult,
-  GeneratedTheme
+  GeneratedTheme,
+  ThemeOption,
+  VerificationResult,
+  CourseSummaryResult,
 } from "../types";
 import { recordUsage } from "./usageTracker";
 import { supabase } from "./supabaseClient";
+
+// Optional rate-limit bypass for development/admin (set in .env.local, never in production build)
+const bypassHeaders: Record<string, string> = {};
+const bypassKey = import.meta.env.VITE_RATE_LIMIT_BYPASS_KEY;
+if (bypassKey) {
+  bypassHeaders['x-bypass-key'] = bypassKey;
+}
 
 // Gemini Client — only used as fallback in development when Edge Functions fail
 let ai: GoogleGenAI;
@@ -525,7 +535,7 @@ export const generateDemoSlides = async (topic: string, location: string, style:
   const startTime = Date.now();
   try {
     const { data, error } = await withRetry(() =>
-      supabase.functions.invoke('demo-slides', { body: { topic, location, style, fileData } })
+      supabase.functions.invoke('demo-slides', { body: { topic, location, style, fileData }, headers: bypassHeaders })
     );
     if (error) throw error;
     const result = Array.isArray(data) ? data as DemoSlide[] : (data as any)?.slides || [];
@@ -598,158 +608,104 @@ export const generateCreativeUseCases = async (batchSize: number = 8): Promise<G
 }
 
 // ============================================
-// 8. Sector Inference from Content (direct only)
+// 8. Sector Inference from Content (local keyword matching — no AI call)
 // ============================================
+
+const SECTOR_KEYWORDS: [string[], string, string[]][] = [
+  [['aws', 'cloud', 'azure', 'gcp', 'ec2', 's3', 'lambda', 'kubernetes', 'docker', 'devops', 'saas', 'iaas', 'solutions architect', 'certified cloud'], 'Cloud Computing', ['AWS Solutions Architect', 'Cloud Infrastructure', 'DevOps']],
+  [['cyber', 'security', 'penetration', 'firewall', 'encryption', 'soc', 'siem', 'malware', 'phishing', 'zero trust'], 'Cybersecurity', ['Network Security', 'Threat Analysis', 'Incident Response']],
+  [['software', 'programming', 'javascript', 'python', 'react', 'api', 'database', 'frontend', 'backend', 'fullstack', 'agile', 'scrum'], 'Software Engineering', ['Software Development', 'Web Technologies', 'API Design']],
+  [['data science', 'machine learning', 'artificial intelligence', 'deep learning', 'neural', 'nlp', 'analytics', 'big data', 'tensorflow', 'pytorch'], 'Data Science & AI', ['Machine Learning', 'Data Analytics', 'AI Models']],
+  [['it ', 'information technology', 'networking', 'cisco', 'comptia', 'server', 'active directory', 'helpdesk', 'itil'], 'Information Technology', ['IT Infrastructure', 'Network Administration', 'Technical Support']],
+  [['healthcare', 'hipaa', 'medical', 'clinical', 'patient', 'nursing', 'hospital', 'ehr', 'pharmaceutical', 'cpr', 'first aid'], 'Healthcare', ['Patient Safety', 'HIPAA Compliance', 'Clinical Procedures']],
+  [['construction', 'osha', 'fall protection', 'scaffold', 'excavation', 'hard hat', 'building code', 'ppe', 'safety harness'], 'Construction', ['OSHA Standards', 'Safety Protocols', 'Building Codes']],
+  [['manufacturing', 'lockout', 'tagout', 'machine guard', 'lean', 'six sigma', 'quality control', 'iso 9001'], 'Manufacturing', ['Safety Procedures', 'Quality Control', 'Lean Manufacturing']],
+  [['food', 'servsafe', 'fda', 'haccp', 'allergen', 'sanitation', 'kitchen', 'food safety'], 'Food Service', ['Food Safety', 'FDA Regulations', 'Sanitation Protocols']],
+  [['finance', 'banking', 'investment', 'accounting', 'audit', 'sox', 'aml', 'kyc', 'fintech', 'financial', 'cfp', 'certified financial', 'wealth management', 'retirement', 'estate planning', 'fiduciary', 'portfolio', 'securities', 'mutual fund', 'annuity', 'tax planning', 'financial planning', 'cfa', 'series 7', 'series 65', 'finra', 'sec ', 'broker', 'advisor'], 'Finance & Banking', ['Financial Compliance', 'Risk Management', 'Banking Regulations']],
+  [['transport', 'logistics', 'dot', 'fmcsa', 'cdl', 'trucking', 'freight', 'shipping', 'supply chain'], 'Transportation & Logistics', ['DOT Compliance', 'Fleet Safety', 'Supply Chain']],
+  [['aviation', 'faa', 'pilot', 'aircraft', 'airspace', 'flight', 'airline'], 'Aviation', ['FAA Regulations', 'Flight Safety', 'Aircraft Maintenance']],
+  [['energy', 'utility', 'electric', 'power plant', 'solar', 'wind', 'oil', 'gas', 'pipeline', 'renewable'], 'Energy & Utilities', ['Energy Safety', 'Power Systems', 'Utility Compliance']],
+  [['legal', 'compliance', 'regulation', 'law', 'governance', 'gdpr', 'privacy', 'attorney'], 'Legal & Compliance', ['Regulatory Framework', 'Compliance Standards', 'Legal Requirements']],
+  [['insurance', 'underwriting', 'actuary', 'claims', 'policyholder', 'premium', 'deductible', 'liability insurance', 'risk assessment'], 'Insurance', ['Insurance Regulations', 'Risk Assessment', 'Claims Processing']],
+  [['real estate', 'property', 'mortgage', 'realtor', 'housing', 'commercial property'], 'Real Estate', ['Property Management', 'Real Estate Law', 'Market Analysis']],
+  [['education', 'teaching', 'curriculum', 'instructional design', 'elearning', 'lms', 'classroom', 'pedagogy'], 'Education & Training', ['Curriculum Development', 'Instructional Design', 'Learning Management']],
+  [['hr', 'human resource', 'onboarding', 'recruitment', 'employee', 'workplace', 'talent'], 'Human Resources', ['Employee Relations', 'Recruitment', 'Workplace Policy']],
+  [['telecom', 'wireless', '5g', 'network', 'fiber', 'broadband', 'mobile'], 'Telecommunications', ['Network Infrastructure', 'Wireless Technologies', 'Telecom Standards']],
+  [['pharma', 'drug', 'fda approval', 'clinical trial', 'gmp', 'pharmacology', 'biotech', 'vaccine', 'dosage'], 'Pharmaceuticals', ['Drug Development', 'FDA Compliance', 'Clinical Trials']],
+];
 
 export const inferSectorFromContent = async (
   topic: string,
   files: IngestedFile[]
 ): Promise<InferredSector> => {
-  const startTime = Date.now();
-
-  // Build a richer topic string from filenames if topic is sparse
+  // Build text from topic + filenames for keyword matching
   const fileContext = files.map(f => f.name).join(', ');
-  const enrichedTopic = topic
-    ? (fileContext ? `${topic} (files: ${fileContext})` : topic)
-    : fileContext || 'unknown';
+  const textToMatch = [topic, fileContext].filter(Boolean).join(' ').toLowerCase();
 
-  // Prepare files for the Edge Function:
-  // - Storage-backed files: pass storagePath (Edge Function will download)
-  // - Small inline files: pass data
-  // - Large inline files: pass metadata only (topic + filename is enough)
-  const MAX_INLINE_INFERENCE_SIZE = 4 * 1024 * 1024;
-  const inferenceFiles = files
-    .map(f => {
-      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
-      if (f.data && f.data.length <= MAX_INLINE_INFERENCE_SIZE) return f;
-      return null; // too large for inline, no storage path — skip
-    })
-    .filter((f): f is NonNullable<typeof f> => f !== null);
-
-  try {
-    // Route through Edge Function (API key server-side)
-    const { data, error } = await withRetry(() =>
-      supabase.functions.invoke('demo-slides', {
-        body: { topic: enrichedTopic, inferSector: true, files: inferenceFiles }
-      })
-    );
-    if (error) throw error;
-
-    const result = data as any;
-    const usage = (data as any)?._usage;
-    recordUsage('gemini-3-flash-preview', 'inferSectorFromContent (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
-
-    return {
-      sector: result.sector || 'General',
-      confidence: result.confidence || 'low',
-      alternatives: result.alternatives || [],
-      reasoning: result.reasoning || 'Unable to determine industry',
-      isAmbiguous: result.isAmbiguous || false,
-      detectedTopics: result.detectedTopics || []
-    };
-
-  } catch (err) {
-    console.warn('Edge Function sector inference failed, trying direct:', err);
-
-    // Fallback to direct API (dev only) — only inline files work here
-    try {
-      const inlineFiles = files.filter(f => f.data);
-      return await inferSectorFromContentDirect(enrichedTopic, inlineFiles);
-    } catch (error) {
-      console.error("Sector Inference Error:", error);
-      return {
-        sector: 'General',
-        confidence: 'low',
-        reasoning: 'Could not identify industry automatically.',
-        isAmbiguous: true,
-        alternatives: ['Information Technology', 'Healthcare', 'Construction', 'Finance & Banking']
-      };
+  let bestSector = '';
+  let bestTopics: string[] = [];
+  let bestScore = 0;
+  for (const [keywords, sector, topics] of SECTOR_KEYWORDS) {
+    const score = keywords.filter(kw => textToMatch.includes(kw)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestSector = sector;
+      bestTopics = topics;
     }
   }
-};
 
-async function inferSectorFromContentDirect(
-  topic: string,
-  files: IngestedFile[]
-): Promise<InferredSector> {
-  const startTime = Date.now();
-  const model = 'gemini-3-flash-preview';
+  if (bestScore >= 2) {
+    return {
+      sector: bestSector,
+      confidence: bestScore >= 3 ? 'high' : 'medium',
+      reasoning: `Matched ${bestScore} keyword${bestScore > 1 ? 's' : ''} for ${bestSector}.`,
+      isAmbiguous: false,
+      detectedTopics: bestTopics,
+      alternatives: [],
+    };
+  }
 
-  const parts: any[] = [];
-
-  files.forEach(file => {
-    if (!file.data) return;
-    const base64Data = file.data.split(',')[1];
-    parts.push({
-      inlineData: {
-        mimeType: file.type,
-        data: base64Data
-      }
+  // Weak or no keyword match — use Gemini via edge function to read actual file content
+  try {
+    const { data, error } = await supabase.functions.invoke('demo-slides', {
+      body: { inferSector: true, topic, files },
+      headers: bypassHeaders,
     });
-  });
-
-  const prompt = `
-    Determine the primary industry for this training/certification material.
-
-    ${topic ? `Topic: "${topic}"` : 'No topic provided - infer from files only.'}
-
-    Pick the single best-matching industry:
-    - Healthcare, Pharmaceuticals
-    - Construction, Manufacturing, Mining & Resources
-    - Food Service, Hospitality & Tourism
-    - Transportation & Logistics, Aviation
-    - Finance & Banking, Insurance, Accounting & Audit
-    - Energy & Utilities, Environmental & Sustainability
-    - Legal & Compliance, Government & Public Sector
-    - Information Technology, Cloud Computing, Cybersecurity, Software Engineering, Data Science & AI
-    - Telecommunications, Media & Communications
-    - Education & Training, Human Resources, Project Management
-    - Real Estate, Retail & E-Commerce
-    - Agriculture, Nonprofit & NGO
-
-    Return the industry name exactly as listed above.
-
-    CRITICAL RULES:
-    - Identify the PRIMARY industry of the course itself, not industries mentioned as examples within the course.
-    - A cloud computing certification that uses plumbing as an analogy is Cloud Computing, not Construction.
-    - Set isAmbiguous to false unless the course genuinely spans two equal industries.
-    - Include 3-5 specific subjects in detectedTopics (e.g., "AWS Solutions Architect", "EC2 Instance Types") — not generic category names.
-  `;
-
-  parts.push({ text: prompt });
-
-  const response = await ai.models.generateContent({
-    model,
-    contents: { parts },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          sector: { type: Type.STRING },
-          confidence: { type: Type.STRING },
-          alternatives: { type: Type.ARRAY, items: { type: Type.STRING } },
-          reasoning: { type: Type.STRING },
-          isAmbiguous: { type: Type.BOOLEAN },
-          detectedTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
-        },
-        required: ["sector", "confidence", "reasoning", "isAmbiguous"]
-      }
+    if (!error && data?.sector) {
+      return {
+        sector: data.sector,
+        confidence: data.confidence || 'medium',
+        reasoning: data.reasoning || 'Identified by AI analysis of course content.',
+        isAmbiguous: data.isAmbiguous ?? false,
+        detectedTopics: data.detectedTopics || [],
+        alternatives: data.alternatives || [],
+      };
     }
-  });
+  } catch (err) {
+    console.warn('Edge function sector inference failed, using keyword fallback:', err);
+  }
 
-  trackUsage(response, model, 'inferSectorFromContent', startTime);
+  // If keyword had a weak (1) match, use it rather than a blind default
+  if (bestScore === 1) {
+    return {
+      sector: bestSector,
+      confidence: 'low',
+      reasoning: `Weak match (1 keyword) for ${bestSector}. Please verify.`,
+      isAmbiguous: true,
+      detectedTopics: bestTopics,
+      alternatives: ['Finance & Banking', 'Healthcare', 'Construction', 'Information Technology'],
+    };
+  }
 
-  const result = JSON.parse(response.text || '{}');
+  // True fallback — no matches at all, don't assume IT
   return {
-    sector: result.sector || 'General',
-    confidence: result.confidence || 'low',
-    alternatives: result.alternatives || [],
-    reasoning: result.reasoning || 'Unable to determine sector',
-    isAmbiguous: result.isAmbiguous || false,
-    detectedTopics: result.detectedTopics || []
+    sector: '',
+    confidence: 'low',
+    reasoning: 'Could not identify industry automatically.',
+    isAmbiguous: true,
+    alternatives: ['Finance & Banking', 'Healthcare', 'Construction', 'Information Technology', 'Cloud Computing']
   };
-}
+};
 
 // ============================================
 // 9. Enhanced Demo Slide Generation with Search Grounding
@@ -998,6 +954,234 @@ async function generateDemoSlidesEnhancedDirect(
 }
 
 // ============================================
+// Study Guide Generation (AI-powered)
+// ============================================
+
+export interface StudyGuideSection {
+  title: string;
+  summary: string;
+  keyPoints: string[];
+  takeaway: string;
+}
+
+export interface StudyGuideResult {
+  sections: StudyGuideSection[];
+}
+
+export const generateStudyGuide = async (
+  topic: string,
+  sector: string,
+  files: IngestedFile[]
+): Promise<StudyGuideResult> => {
+  const startTime = Date.now();
+
+  const apiFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= 4 * 1024 * 1024) return f;
+      return null;
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+
+  try {
+    console.log('[generateStudyGuide] Calling edge function with', { topic, sector, fileCount: apiFiles.length });
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic, sector, files: apiFiles, action: 'generateStudyGuide' },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) {
+      console.error('[generateStudyGuide] Edge function error:', error);
+      throw error;
+    }
+    console.log('[generateStudyGuide] Raw response data:', JSON.stringify(data).slice(0, 500));
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateStudyGuide (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return { sections: (data as any).sections || [] };
+  } catch (err) {
+    console.error('[generateStudyGuide] Failed:', err);
+    return { sections: [] };
+  }
+};
+
+// ============================================
+// AI Slide Content Generation
+// ============================================
+
+export interface GeneratedSlide {
+  title: string;
+  subtitle?: string;
+  bullets: string[];
+  keyFact?: string;
+  layoutSuggestion: string;
+  sourceContext?: string;
+  imageUrl?: string; // Infographic image URL (populated after generation)
+}
+
+export interface SlideContentResult {
+  slides: GeneratedSlide[];
+  dataVerification?: {
+    totalSourcePages: number;
+    pagesReferenced: number;
+    coveragePercentage: number;
+    missingTopics?: string[];
+  };
+  disclaimer?: string;
+}
+
+export const generateSlideContent = async (
+  topic: string,
+  sector: string,
+  files: IngestedFile[],
+  themePreferences?: { name: string; description: string },
+): Promise<SlideContentResult> => {
+  const startTime = Date.now();
+
+  const apiFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= 4 * 1024 * 1024) return f;
+      return null;
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+
+  try {
+    console.log('[generateSlideContent] Calling edge function with', { topic, sector, fileCount: apiFiles.length });
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic, sector, files: apiFiles, action: 'generateSlideContent', themePreferences },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) {
+      console.error('[generateSlideContent] Edge function error:', error);
+      throw error;
+    }
+    console.log('[generateSlideContent] Raw response data:', JSON.stringify(data).slice(0, 500));
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateSlideContent (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return {
+      slides: (data as any).slides || [],
+      dataVerification: (data as any).dataVerification,
+      disclaimer: (data as any).disclaimer || undefined,
+    };
+  } catch (err) {
+    console.error('[generateSlideContent] Failed:', err);
+    return { slides: [] };
+  }
+};
+
+// ============================================
+// Infographic Slide Selection (Gemini Reasoning)
+// ============================================
+
+export interface InfographicSelection {
+  selectedSlideIndex: number;
+  reasoning: string;
+  imagePrompt: string;
+}
+
+export const selectInfographicSlide = async (
+  slides: GeneratedSlide[],
+  topic: string,
+  sector: string,
+): Promise<InfographicSelection> => {
+  const startTime = Date.now();
+
+  try {
+    console.log('[selectInfographicSlide] Asking Gemini to pick best slide for infographic...');
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic,
+          sector,
+          action: 'selectInfographicSlide',
+          slides: slides.map(s => ({ title: s.title, bullets: s.bullets, keyFact: s.keyFact })),
+        },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) {
+      console.error('[selectInfographicSlide] Edge function error:', error);
+      throw error;
+    }
+    console.log('[selectInfographicSlide] Result:', data);
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'selectInfographicSlide (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return {
+      selectedSlideIndex: (data as any).selectedSlideIndex ?? 2,
+      reasoning: (data as any).reasoning || '',
+      imagePrompt: (data as any).imagePrompt || `Create a clean, modern infographic about ${topic}`,
+    };
+  } catch (err) {
+    console.error('[selectInfographicSlide] Failed:', err);
+    // Fallback: pick slide index 2 (or 1 if fewer slides)
+    return {
+      selectedSlideIndex: Math.min(2, slides.length - 1),
+      reasoning: 'Fallback selection',
+      imagePrompt: `Create a clean, modern infographic about ${topic} in the ${sector} sector. Use a professional color scheme with clear labels and icons.`,
+    };
+  }
+};
+
+// ============================================
+// Quiz Generation (AI-powered)
+// ============================================
+
+export interface QuizQuestion {
+  id: number;
+  type: 'multiple-choice';
+  topic: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface QuizResult {
+  questions: QuizQuestion[];
+}
+
+export const generateQuizQuestions = async (
+  topic: string,
+  sector: string,
+  files: IngestedFile[],
+  studyGuideSections?: StudyGuideSection[]
+): Promise<QuizResult> => {
+  const startTime = Date.now();
+
+  const apiFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= 4 * 1024 * 1024) return f;
+      return null;
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+
+  try {
+    console.log('[generateQuizQuestions] Calling edge function with', { topic, sector, fileCount: apiFiles.length, hasStudyGuide: !!(studyGuideSections && studyGuideSections.length > 0) });
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: { topic, sector, files: apiFiles, action: 'generateQuiz', studyGuideSections },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) {
+      console.error('[generateQuizQuestions] Edge function error:', error);
+      throw error;
+    }
+    console.log('[generateQuizQuestions] Raw response data:', JSON.stringify(data).slice(0, 500));
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateQuizQuestions (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return { questions: (data as any).questions || [] };
+  } catch (err) {
+    console.error('[generateQuizQuestions] Failed:', err);
+    return { questions: [] };
+  }
+};
+
+// ============================================
 // Findings Scan — Stage 1 of the two-stage demo flow
 // ============================================
 
@@ -1022,7 +1206,8 @@ export const scanCourseFindings = async (
   try {
     const { data, error } = await withRetry(() =>
       supabase.functions.invoke('demo-slides', {
-        body: { topic, sector, location, updateMode, files: scanFiles, action: 'scan' }
+        body: { topic, sector, location, updateMode, files: scanFiles, action: 'scan' },
+        headers: bypassHeaders,
       })
     );
     if (error) throw error;
@@ -1139,7 +1324,7 @@ export const generateDemoSlidesEnhanced = async (
       : { topic, sector, location, updateMode, style, files, enhanced: true };
 
     const { data, error } = await withRetry(() =>
-      supabase.functions.invoke('demo-slides', { body })
+      supabase.functions.invoke('demo-slides', { body, headers: bypassHeaders })
     );
     if (error) throw error;
     const enhancedUsage = (data as any)?._usage;
@@ -1183,6 +1368,7 @@ export const generatePresentationTheme = async (
           action: 'generateTheme',
           themeQuestionnaire: questionnaire,
         },
+        headers: bypassHeaders,
       })
     );
     if (error) throw error;
@@ -1202,6 +1388,133 @@ export const generatePresentationTheme = async (
   } catch (err) {
     console.warn('Edge Function theme generation failed, using fallback:', err);
     return fallbackTheme;
+  }
+};
+
+// ============================================
+// 11. AI Theme Options Generation (6 diverse palettes)
+// ============================================
+
+const FALLBACK_THEME_OPTIONS: ThemeOption[] = [
+  {
+    name: 'Clean & Light',
+    description: 'Airy and modern with warm white space and teal accents',
+    backgroundColor: '#fafaf9', textColor: '#1c1917', primaryColor: '#0d9488',
+    secondaryColor: '#5eead4', mutedTextColor: '#78716c', fontSuggestion: 'Inter', layoutStyle: 'minimal',
+  },
+  {
+    name: 'Midnight Bold',
+    description: 'High-contrast dark navy with bright amber highlights',
+    backgroundColor: '#0f172a', textColor: '#f8fafc', primaryColor: '#f59e0b',
+    secondaryColor: '#fbbf24', mutedTextColor: '#94a3b8', fontSuggestion: 'Space Grotesk', layoutStyle: 'bold',
+  },
+  {
+    name: 'Warm Sunset',
+    description: 'Inviting cream tones with warm red energy',
+    backgroundColor: '#fef3c7', textColor: '#451a03', primaryColor: '#dc2626',
+    secondaryColor: '#f97316', mutedTextColor: '#92400e', fontSuggestion: 'DM Sans', layoutStyle: 'organic',
+  },
+  {
+    name: 'Ocean Professional',
+    description: 'Deep blue authority with cool sky blue accents',
+    backgroundColor: '#0c4a6e', textColor: '#e0f2fe', primaryColor: '#38bdf8',
+    secondaryColor: '#7dd3fc', mutedTextColor: '#7dd3fc', fontSuggestion: 'IBM Plex Sans', layoutStyle: 'structured',
+  },
+  {
+    name: 'Forest & Gold',
+    description: 'Rich green prestige with gold accent flourishes',
+    backgroundColor: '#14532d', textColor: '#f0fdf4', primaryColor: '#eab308',
+    secondaryColor: '#a3e635', mutedTextColor: '#86efac', fontSuggestion: 'Playfair Display', layoutStyle: 'editorial',
+  },
+  {
+    name: 'Neon Tech',
+    description: 'Edgy dark zinc with vibrant purple glow',
+    backgroundColor: '#18181b', textColor: '#e4e4e7', primaryColor: '#a855f7',
+    secondaryColor: '#c084fc', mutedTextColor: '#71717a', fontSuggestion: 'Outfit', layoutStyle: 'geometric',
+  },
+];
+
+export const generateThemeOptions = async (
+  sector: string,
+  contentSummary: string
+): Promise<ThemeOption[]> => {
+  const startTime = Date.now();
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic: contentSummary || 'course materials',
+          sector,
+          action: 'generateThemeOptions',
+        },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) throw error;
+
+    const themes = (data as any)?.themes;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateThemeOptions (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+
+    if (Array.isArray(themes) && themes.length >= 4) {
+      return themes.slice(0, 6).map((t: any) => ({
+        name: t.name || 'Theme',
+        description: t.description || '',
+        backgroundColor: t.backgroundColor || '#ffffff',
+        textColor: t.textColor || '#1e293b',
+        primaryColor: t.primaryColor || '#2563eb',
+        secondaryColor: t.secondaryColor || '#60a5fa',
+        mutedTextColor: t.mutedTextColor || '#94a3b8',
+        fontSuggestion: t.fontSuggestion || 'Inter',
+        layoutStyle: t.layoutStyle || 'geometric',
+      }));
+    }
+    throw new Error('Insufficient themes returned');
+  } catch (err) {
+    console.warn('Theme options generation failed, using fallbacks:', err);
+    return FALLBACK_THEME_OPTIONS;
+  }
+};
+
+// ============================================
+// 12. Font Options Generation (Design Mode)
+// ============================================
+
+const FALLBACK_FONT_OPTIONS = ['Inter', 'Poppins', 'Space Grotesk', 'DM Sans', 'Playfair Display'];
+
+export const generateFontOptions = async (
+  sector: string,
+  contentSummary: string,
+  themeCharacter: string
+): Promise<string[]> => {
+  const startTime = Date.now();
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic: contentSummary || 'course materials',
+          sector,
+          action: 'generateFontOptions',
+          themeCharacter,
+        },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) throw error;
+
+    const fonts = (data as any)?.fonts;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateFontOptions (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+
+    if (Array.isArray(fonts) && fonts.length >= 3) {
+      return fonts.slice(0, 5);
+    }
+    throw new Error('Insufficient fonts returned');
+  } catch (err) {
+    console.warn('Font options generation failed, using fallbacks:', err);
+    return FALLBACK_FONT_OPTIONS;
   }
 };
 
@@ -1435,11 +1748,118 @@ function createFallbackDemoResult(
   };
 }
 
+// ============================================
+// 13. Verify Findings (Search Grounding)
+// ============================================
+
+export const verifyFindings = async (
+  approvedFindings: CourseFinding[],
+  sector: string,
+  location: string,
+): Promise<VerificationResult> => {
+  const startTime = Date.now();
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic: 'verification',
+          sector,
+          location,
+          action: 'verify' as const,
+          approvedFindings: approvedFindings.map(f => ({
+            id: f.id,
+            category: f.category,
+            title: f.title,
+            description: f.description,
+            severity: f.severity,
+            sourceSnippet: f.sourceSnippet,
+            currentInfo: f.currentInfo,
+          })),
+        },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) throw error;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'verifyFindings (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return {
+      findings: (data as any).findings || [],
+      searchQueries: (data as any).searchQueries || [],
+      verifiedAt: (data as any).verifiedAt || new Date().toISOString(),
+    };
+  } catch (err) {
+    console.warn('Verify findings failed:', err);
+    return {
+      findings: [],
+      searchQueries: [],
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+};
+
+// ============================================
+// 14. Generate Course Summary
+// ============================================
+
+export const generateCourseSummary = async (
+  topic: string,
+  sector: string,
+  files: IngestedFile[],
+): Promise<CourseSummaryResult> => {
+  const startTime = Date.now();
+
+  const apiFiles = files
+    .map(f => {
+      if (f.storagePath) return { name: f.name, type: f.type, storagePath: f.storagePath };
+      if (f.data && f.data.length <= 4 * 1024 * 1024) return f;
+      return null;
+    })
+    .filter((f): f is NonNullable<typeof f> => f !== null);
+
+  try {
+    const { data, error } = await withRetry(() =>
+      supabase.functions.invoke('demo-slides', {
+        body: {
+          topic,
+          sector,
+          files: apiFiles,
+          action: 'generateCourseSummary' as const,
+        },
+        headers: bypassHeaders,
+      })
+    );
+    if (error) throw error;
+    const usage = (data as any)?._usage;
+    recordUsage('gemini-3-flash-preview', 'generateCourseSummary (edge)', usage?.promptTokenCount || 0, usage?.candidatesTokenCount || 0, Date.now() - startTime);
+    return {
+      courseTitle: (data as any).courseTitle || topic || 'Unknown Course',
+      learningObjectives: (data as any).learningObjectives || [],
+      keyTopics: (data as any).keyTopics || [],
+      difficulty: (data as any).difficulty || 'intermediate',
+      estimatedDuration: (data as any).estimatedDuration || 'Unknown',
+      moduleCount: (data as any).moduleCount || 0,
+      summary: (data as any).summary || '',
+    };
+  } catch (err) {
+    console.warn('Course summary generation failed:', err);
+    return {
+      courseTitle: topic || 'Unknown Course',
+      learningObjectives: [],
+      keyTopics: [],
+      difficulty: 'intermediate',
+      estimatedDuration: 'Unknown',
+      moduleCount: 0,
+      summary: 'Unable to generate course summary.',
+    };
+  }
+};
+
 // --- LIVE API CLIENT HELPER (Gemini 2.5 Native Audio) ---
 export const connectLiveParams = {
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
     config: {
-        responseModalities: ["AUDIO"],
+        responseModalities: [Modality.AUDIO],
         speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
         },

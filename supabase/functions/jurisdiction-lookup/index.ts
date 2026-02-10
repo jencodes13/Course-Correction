@@ -45,7 +45,8 @@ Focus on official government bodies that enforce regulations in this area.`;
     const { text, usageMetadata } = await callGeminiWithMapsGrounding(
       "gemini-3-flash-preview",
       prompt,
-      systemInstruction
+      systemInstruction,
+      4096
     );
 
     // Track API usage

@@ -1,0 +1,27 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="80" y1="440" x2="400" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF6B5B"/>
+      <stop offset="45%" stop-color="#7B3AFF"/>
+      <stop offset="75%" stop-color="#3A8AFF"/>
+      <stop offset="100%" stop-color="#00C9A7"/>
+    </linearGradient>
+  </defs>
+  <!-- Looping arrow: tail at bottom-left, loops up and around, exits top-right -->
+  <path
+    d="M 100 430 C 80 320, 120 140, 220 150 C 340 165, 370 310, 280 360 C 190 410, 130 310, 170 210 C 200 140, 280 90, 370 65"
+    stroke="url(#g)"
+    stroke-width="44"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Arrowhead -->
+  <path
+    d="M 330 30 L 390 62 L 335 100"
+    stroke="#00C9A7"
+    stroke-width="40"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>

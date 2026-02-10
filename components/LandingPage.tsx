@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowRight, ChevronDown, Sun, Moon, Shield, Palette, Upload, Search, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Sun, Moon, Shield, Palette, Upload, Search, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface LandingPageProps {
@@ -7,51 +7,35 @@ interface LandingPageProps {
   onSignIn?: () => void;
 }
 
-// ─── Logo SVG ───
-function LogoMark({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-      <defs>
-        <linearGradient id="logo-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#FF6B5B" />
-          <stop offset="50%" stopColor="#4A3AFF" />
-          <stop offset="100%" stopColor="#00C9A7" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M 8 34 C 6 24, 12 10, 22 12 C 32 14, 34 26, 26 30 C 18 34, 12 26, 16 18 C 19 12, 26 8, 33 6"
-        stroke="url(#logo-grad)"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <path
-        d="M 30 3.5 L 34 6 L 30.5 8.5"
-        stroke="#00C9A7"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  );
+// ─── Logo Image ───
+function LogoMark({ size = 36 }: { size?: number }) {
+  return <img src="/public/logo-cropped.png" alt="Course Correction" width={size} height={size} className="inline-block" style={{ objectFit: 'contain' }} />;
 }
 
-// ─── Slide Dots Navigation ───
-function SlideDots({ total, current, onNavigate }: { total: number; current: number; onNavigate: (i: number) => void }) {
+// ─── Slide Thumbnail Navigator (left rail) ───
+const SLIDE_LABELS = ['Hero', 'Problem', 'Solution', 'How It Works', 'Get Started'];
+function SlideThumbnails({ total, current, onNavigate }: { total: number; current: number; onNavigate: (i: number) => void }) {
   return (
-    <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+    <div className="fixed left-5 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3 items-start">
       {Array.from({ length: total }).map((_, i) => (
         <button
           key={i}
           onClick={() => onNavigate(i)}
-          className={`w-2 h-2 rounded-full transition-all duration-300 ${
-            i === current
-              ? 'bg-accent scale-125 shadow-lg shadow-accent/30'
-              : 'bg-text-muted/30 hover:bg-text-muted/60'
-          }`}
+          className="flex items-center gap-2.5 group focus:outline-none"
           aria-label={`Go to slide ${i + 1}`}
-        />
+        >
+          <span className={`text-[11px] font-bold tabular-nums transition-colors duration-300 ${
+            i === current ? 'text-accent' : 'text-text-muted/40 group-hover:text-text-muted/70'
+          }`}>{i + 1}</span>
+          <div className={`rounded-lg border-2 transition-all duration-300 ${
+            i === current
+              ? 'w-14 h-10 border-accent bg-accent/10 shadow-md shadow-accent/10'
+              : 'w-11 h-8 border-surface-border/60 bg-card/60 group-hover:border-text-muted/30'
+          }`} />
+          {i === current && (
+            <span className="text-[10px] font-semibold text-accent whitespace-nowrap">{SLIDE_LABELS[i]}</span>
+          )}
+        </button>
       ))}
     </div>
   );
@@ -212,64 +196,79 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
       ref={containerRef}
       className="h-screen overflow-y-scroll slide-container bg-background"
     >
-      {/* ── Fixed Nav ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-8 py-5 bg-background/80 backdrop-blur-md border-b border-surface-border/50">
-        <div className="flex items-center gap-3">
-          <LogoMark size={28} />
-          <span className="text-base font-bold text-text-primary tracking-tight">Course Correction</span>
-        </div>
-        <div className="flex items-center gap-3">
+      {/* ── Dual Floating Nav ── */}
+      <div className="fixed top-5 left-0 right-0 z-50 flex justify-between items-center px-8">
+        {/* Left pill: Logo + Theme toggle */}
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-card/80 backdrop-blur-xl border border-surface-border/60 shadow-lg">
+          <LogoMark size={30} />
+          <span className="text-sm font-bold text-text-primary tracking-tight">Course Correction</span>
+          <div className="w-px h-4 bg-surface-border/60" />
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-colors"
+            className="p-1.5 rounded-full text-text-muted hover:text-text-primary hover:bg-surface transition-colors"
             aria-label="Toggle theme"
           >
-            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
           </button>
+        </div>
+        {/* Right pill: Sign In + Try the demo */}
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-card/80 backdrop-blur-xl border border-surface-border/60 shadow-lg">
           {onSignIn && (
-            <button onClick={onSignIn} className="text-sm font-medium text-text-muted hover:text-accent transition-colors">
+            <button onClick={onSignIn} className="text-[13px] font-medium text-text-muted hover:text-accent transition-colors px-2">
               Sign In
             </button>
           )}
-          <button onClick={onStart} className="px-5 py-2 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent/90 transition-colors shadow-sm">
+          <button onClick={onStart} className="px-4 py-1.5 rounded-full text-[13px] font-semibold bg-accent text-white hover:bg-accent/90 transition-colors shadow-sm">
             Try the demo
           </button>
         </div>
-      </nav>
+      </div>
 
-      {/* ── Slide Dots ── */}
-      <SlideDots total={TOTAL_SLIDES} current={currentSlide} onNavigate={navigateSlide} />
+      {/* ── Slide Thumbnails (left rail) ── */}
+      <SlideThumbnails total={TOTAL_SLIDES} current={currentSlide} onNavigate={navigateSlide} />
+
+      {/* ── Slide Navigation Arrows ── */}
+      {currentSlide > 0 && (
+        <button onClick={() => navigateSlide(currentSlide - 1)} className="fixed top-20 left-1/2 -translate-x-1/2 z-50 text-text-muted/40 hover:text-text-muted transition-colors animate-bounce" style={{ animationDirection: 'reverse' }}>
+          <ChevronUp className="w-5 h-5" />
+        </button>
+      )}
+      {currentSlide < TOTAL_SLIDES - 1 && (
+        <button onClick={() => navigateSlide(currentSlide + 1)} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-text-muted/40 hover:text-text-muted transition-colors animate-bounce">
+          <ChevronDown className="w-5 h-5" />
+        </button>
+      )}
 
       {/* ═══ SLIDE 1: Hero ═══ */}
-      <section className="h-screen flex flex-col items-center justify-center px-6 pt-20 pb-10 relative">
+      <section className="h-screen flex flex-col items-center justify-center px-6 pt-16 pb-6 relative">
         {/* Badge */}
-        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border mb-8 transition-all duration-700 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} bg-success/10 text-success border-success/20`}>
+        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border mb-5 transition-all duration-700 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'} bg-success/10 text-success border-success/20`}>
           <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
           Built for the Gemini 3 Hackathon
         </div>
 
         {/* Headline */}
-        <div className={`text-center max-w-2xl mb-10 transition-all duration-700 delay-150 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <h1 className="text-5xl md:text-6xl font-extrabold text-text-primary leading-[1.08] tracking-tight mb-5">
+        <div className={`text-center max-w-3xl mb-6 transition-all duration-700 delay-150 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-text-primary leading-[1.08] tracking-tight mb-3 overflow-visible">
             Your training materials<br/>
             <span
               className="bg-gradient-to-r from-accent via-[#4A3AFF] to-success bg-clip-text text-transparent transition-all duration-400"
-              style={{ opacity: phraseFading ? 0 : 1, transform: phraseFading ? 'translateY(6px)' : 'translateY(0)', display: 'inline-block', transition: 'opacity 0.4s ease, transform 0.4s ease' }}
+              style={{ opacity: phraseFading ? 0 : 1, transform: phraseFading ? 'translateY(6px)' : 'translateY(0)', display: 'inline-block', transition: 'opacity 0.4s ease, transform 0.4s ease', padding: '0 0.2em 0.15em', margin: '0 -0.2em -0.15em', lineHeight: 1.3 }}
             >
               {PHRASES[phraseIndex]}
             </span>
           </h1>
-          <p className="text-lg text-text-muted max-w-lg mx-auto leading-relaxed">
-            Course Correction scans your safety courses for outdated regulations and stale designs, then rebuilds them into modern, interactive training.
+          <p className="text-base text-text-muted max-w-2xl mx-auto leading-relaxed">
+            Course Correction scans your courses for outdated regulations and stale designs, then rebuilds them into modern, interactive training.
           </p>
         </div>
 
         {/* Before / After Slider */}
-        <div className={`w-full max-w-3xl transition-all duration-800 delay-300 ${loaded ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}>
+        <div className={`w-full max-w-2xl transition-all duration-800 delay-300 ${loaded ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.98]'}`}>
           <div
             ref={sliderRef}
             className="relative w-full rounded-2xl overflow-hidden shadow-2xl border border-surface-border cursor-default select-none"
-            style={{ height: 420 }}
+            style={{ height: 320 }}
             onClick={e => { if (!isDragging) updateSlider(e.clientX); }}
           >
             <div className="absolute inset-0 z-[1]"><OldDocument /></div>
@@ -290,28 +289,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
               <div className={`w-10 h-10 rounded-full flex items-center justify-center relative z-10 transition-transform duration-150 border-[3px] border-white shadow-lg ${isDragging ? 'scale-110' : 'scale-100'}`} style={{ background: 'linear-gradient(135deg, #FF6B5B, #4A3AFF)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M8 6l-4 6 4 6" /><path d="M16 6l4 6-4 6" /></svg>
               </div>
-              {!hasInteracted && (
-                <div className="absolute bottom-8 whitespace-nowrap text-[11px] text-text-muted font-medium bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-full animate-pulse">
-                  Drag to compare
-                </div>
-              )}
             </div>
           </div>
         </div>
 
         {/* CTA */}
-        <div className={`flex gap-4 items-center mt-8 transition-all duration-700 delay-500 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-          <button onClick={onStart} className="px-7 py-3.5 rounded-xl font-bold text-white text-[15px] shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #FF6B5B, #4A3AFF)' }}>
+        <div className={`flex gap-4 items-center mt-5 transition-all duration-700 delay-500 ${loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
+          <button onClick={onStart} className="px-6 py-3 rounded-xl font-bold text-white text-[15px] shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #FF6B5B, #4A3AFF)' }}>
             Upload a course
             <ArrowRight className="w-4 h-4" />
           </button>
           <span className="text-sm text-text-muted">No sign-up required</span>
         </div>
 
-        {/* Scroll hint */}
-        <button onClick={() => navigateSlide(1)} className="absolute bottom-8 text-text-muted/40 hover:text-text-muted transition-colors animate-bounce">
-          <ChevronDown className="w-5 h-5" />
-        </button>
       </section>
 
       {/* ═══ SLIDE 2: The Problem ═══ */}
@@ -332,7 +322,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
               </div>
               <h3 className="text-xl font-bold text-text-primary mb-3">Regulatory Decay</h3>
               <p className="text-text-muted leading-relaxed text-[15px]">
-                Regulations update, compliance requirements evolve, statistics become stale. Your 2022 OSHA training is already citing superseded standards.
+                Regulations update, compliance requirements evolve, statistics become stale. Your 2022 OSHA training is already citing outdated standards.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 {['OSHA', 'HIPAA', 'FDA', 'DOT'].map(tag => (
@@ -351,7 +341,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
                 Text-heavy PDFs and bullet-point slides from 2019. Your learners deserve interactive modules, not walls of text with clip art.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                {['PDFs', 'Slideshows', 'Manuals', 'Videos'].map(tag => (
+                {['PDFs', 'Slideshows', 'Manuals', 'Quizzes'].map(tag => (
                   <span key={tag} className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md bg-success/8 text-success border border-success/15">{tag}</span>
                 ))}
               </div>
@@ -379,14 +369,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
                     <Search className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-text-primary">Regulatory Hound</h3>
+                    <h3 className="text-lg font-bold text-text-primary">Content Scanner</h3>
                     <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Engine 1</p>
                   </div>
                 </div>
                 <ul className="space-y-3">
                   {[
                     'Reads every fact, citation, and regulation',
-                    'Cross-checks against live government sources',
+                    'Cross-checks facts against current standards',
                     'Outputs a redline report with proposed rewrites',
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2.5 text-[15px] text-text-muted">
@@ -406,7 +396,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
                     <Sparkles className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-text-primary">Visual Alchemist</h3>
+                    <h3 className="text-lg font-bold text-text-primary">Design Transformer</h3>
                     <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Engine 2</p>
                   </div>
                 </div>
@@ -434,7 +424,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
           <div className="text-center mb-14">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-success mb-3">How It Works</p>
             <h2 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight leading-tight">
-              Three steps.<br/><span className="bg-gradient-to-r from-success to-[#4A3AFF] bg-clip-text text-transparent">Under a minute.</span>
+              Three steps.<br/><span className="bg-gradient-to-r from-success to-[#4A3AFF] bg-clip-text text-transparent">Under 5 minutes.</span>
             </h2>
           </div>
 
@@ -458,8 +448,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
           {/* Industries strip */}
           <div className="mt-12 flex items-center justify-center gap-6 flex-wrap">
             <span className="text-[10px] uppercase tracking-[0.2em] text-text-muted font-semibold">Built for</span>
-            {['Construction', 'Healthcare', 'Manufacturing', 'Food Service', 'Transportation'].map(ind => (
-              <span key={ind} className="text-sm text-text-muted/70">{ind}</span>
+            {['Professional Certifications', 'Construction', 'Healthcare', 'Manufacturing', 'Transportation', 'and more'].map(ind => (
+              <span key={ind} className={`text-sm ${ind === 'and more' ? 'text-accent/70 italic' : 'text-text-muted/70'}`}>{ind}</span>
             ))}
           </div>
         </div>
@@ -468,13 +458,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onSignIn }) => {
       {/* ═══ SLIDE 5: CTA ═══ */}
       <section className="h-screen flex items-center justify-center px-6 relative">
         <div className="text-center max-w-xl">
-          <LogoMark size={48} />
-          <h2 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight leading-tight mt-8 mb-4">
-            Stop shipping<br/>outdated training.
+          <LogoMark size={56} />
+          <h2 className="text-4xl md:text-5xl font-extrabold text-text-primary tracking-tight leading-tight mt-8 mb-10">
+            Stop spending weeks<br/>updating your training.
           </h2>
-          <p className="text-lg text-text-muted mb-10 leading-relaxed">
-            Upload a course and see what Course Correction finds — in under a minute.
-          </p>
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
             <button onClick={onStart} className="px-8 py-4 rounded-xl font-bold text-white text-[15px] shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #FF6B5B, #4A3AFF)' }}>
               Upload a Course

@@ -39,7 +39,7 @@ export async function extractPdfPageImages(
     const ctx = canvas.getContext('2d');
     if (!ctx) continue;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: ctx, viewport } as any).promise;
     images.push(canvas.toDataURL('image/jpeg', quality));
 
     // Clean up

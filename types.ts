@@ -7,7 +7,8 @@ export enum AppStep {
   DIAGNOSIS = 'DIAGNOSIS',
   REGULATORY = 'REGULATORY',
   VISUAL = 'VISUAL',
-  EXPORT = 'EXPORT'
+  EXPORT = 'EXPORT',
+  ARCHITECTURE = 'ARCHITECTURE'
 }
 
 // Demo Flow Types
@@ -39,7 +40,7 @@ export interface SlideContent {
   sourcePageNumber?: number; // 1-based page number from uploaded PDF this slide corresponds to
 }
 
-export type SlideLayoutType = 'hero' | 'two-column' | 'stats-highlight' | 'comparison' | 'timeline';
+export type SlideLayoutType = 'hero' | 'two-column' | 'stats-highlight' | 'comparison' | 'timeline' | 'split';
 
 export interface DemoSlideEnhanced {
   id: string;
@@ -187,4 +188,88 @@ export interface GeneratedTheme {
   fontSuggestion: string;
   layoutStyle: string;
   designReasoning: string;
+}
+
+export interface ThemeOption {
+  name: string;
+  description: string;
+  backgroundColor: string;
+  textColor: string;
+  primaryColor: string;
+  secondaryColor: string;
+  mutedTextColor: string;
+  fontSuggestion: string;
+  layoutStyle: string;
+}
+
+// Regulatory Output — diff/redline types
+export interface DiffToken {
+  text: string;
+  type: 'same' | 'removed' | 'added';
+}
+
+export interface BulletDiff {
+  type: 'unchanged' | 'removed' | 'added' | 'modified';
+  beforeText?: string;
+  afterText?: string;
+  tokens?: DiffToken[]; // word-level diff for 'modified' type
+}
+
+export interface RedlineEntry {
+  slideId: string;
+  slideIndex: number;
+  sourcePageNumber?: number;
+  findingId?: string;
+  findingTitle?: string;
+  findingCategory?: string;
+  findingSeverity?: string;
+  changesSummary: string;
+  titleDiff: { before: string; after: string; changed: boolean };
+  bulletDiffs: BulletDiff[];
+  citationIds: number[];
+}
+
+// Agent Orchestration Types
+
+export interface VerifiedFinding {
+  findingId: string;
+  title: string;
+  status: 'verified' | 'updated' | 'unverified';
+  confidence: number; // 0-100
+  sourceUrl?: string;
+  sourceTitle?: string;
+  verificationNote: string;
+  originalDescription: string;
+  updatedInfo?: string;
+}
+
+export interface VerificationResult {
+  findings: VerifiedFinding[];
+  searchQueries: string[];
+  verifiedAt: string;
+}
+
+export interface CourseSummaryResult {
+  courseTitle: string;
+  learningObjectives: string[];
+  keyTopics: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedDuration: string;
+  moduleCount: number;
+  summary: string;
+}
+
+export type AgentStatus = 'idle' | 'working' | 'complete' | 'error';
+
+export interface AgentState {
+  id: string;
+  name: string;
+  color: string;
+  icon: string; // Lucide icon name
+  status: AgentStatus;
+  progress: string; // Current activity text
+  result?: any;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
 }

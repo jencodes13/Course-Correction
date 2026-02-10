@@ -372,7 +372,7 @@ const UsageDashboard: React.FC<UsageDashboardProps> = ({ onClose }) => {
 
           {activeTab === 'models' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {Object.entries(summary.byModel).map(([model, data]) => (
+              {Object.entries(summary.byModel).map(([model, data]: [string, { calls: number; promptTokens: number; responseTokens: number; totalTokens: number; estimatedCost: number }]) => (
                 <div key={model} style={{
                   background: T.surface, border: `1px solid ${T.border}`,
                   borderRadius: 12, padding: 16,
@@ -696,7 +696,7 @@ function StatCard({ icon: Icon, label, value, subValue, highlight }: {
 }
 
 // Call Row Component
-function CallRow({ record, compact }: { record: UsageRecord; compact?: boolean }) {
+const CallRow: React.FC<{ record: UsageRecord; compact?: boolean }> = ({ record, compact }) => {
   const getModelColor = (model: string) => MODEL_COLORS[model] || T.accent;
 
   const formatTime = (timestamp: number) => {
@@ -756,6 +756,6 @@ function CallRow({ record, compact }: { record: UsageRecord; compact?: boolean }
       )}
     </div>
   );
-}
+};
 
 export default UsageDashboard;

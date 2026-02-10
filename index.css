@@ -16,12 +16,12 @@
 }
 
 .dark {
-  --color-background: 12 11 9;
-  --color-card: 26 25 20;
-  --color-surface: 34 32 26;
-  --color-surface-border: 48 46 38;
-  --color-text-primary: 245 240 224;
-  --color-text-muted: 140 135 115;
+  --color-background: 33 33 33;
+  --color-card: 44 44 44;
+  --color-surface: 51 51 51;
+  --color-surface-border: 66 66 66;
+  --color-text-primary: 245 245 245;
+  --color-text-muted: 160 160 160;
   --color-accent: 255 107 91;
   --color-success: 0 201 167;
   --color-warning: 194 112 86;

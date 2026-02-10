@@ -143,7 +143,8 @@ export async function callGemini(
 export async function callGeminiWithSearchGrounding(
   model: string,
   prompt: string,
-  systemInstruction?: string
+  systemInstruction?: string,
+  maxOutputTokens?: number
 ): Promise<GeminiCallResult> {
   return callGemini(
     model,
@@ -151,6 +152,7 @@ export async function callGeminiWithSearchGrounding(
     {
       systemInstruction,
       tools: [{ googleSearch: {} }],
+      maxOutputTokens,
     }
   );
 }
@@ -158,7 +160,8 @@ export async function callGeminiWithSearchGrounding(
 export async function callGeminiWithMapsGrounding(
   model: string,
   prompt: string,
-  systemInstruction?: string
+  systemInstruction?: string,
+  maxOutputTokens?: number
 ): Promise<GeminiCallResult> {
   // Use Google Search grounding for location-based regulatory lookups
   return callGemini(
@@ -167,6 +170,7 @@ export async function callGeminiWithMapsGrounding(
     {
       systemInstruction,
       tools: [{ googleSearch: {} }],
+      maxOutputTokens,
     }
   );
 }

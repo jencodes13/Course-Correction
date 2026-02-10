@@ -17,6 +17,12 @@ gen-lang-client-*.json
 *.credentials.json
 service-account*.json
 
+# Large binary files (user uploads, exports)
+*.pdf
+*.pptx
+*.ppt
+*.docx
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -27,4 +33,3 @@ service-account*.json
 *.njsproj
 *.sln
 *.sw?
-gen-lang-client-*.json

@@ -100,6 +100,7 @@ Be specific about issues and provide actionable feedback.`;
       {
         systemInstruction: systemPrompt,
         responseSchema: ANALYSIS_SCHEMA,
+        maxOutputTokens: 8192,
       }
     );
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentUser, onAuthStateChange, signIn, signUp, signOut, signInWithGoogle } from '../services/supabaseClient';
 import { useWorkflow } from '../contexts/WorkflowContext';
-import { Zap, Mail, Lock, User, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, ArrowLeft, Loader2, KeyRound } from 'lucide-react';
+
+const ACCESS_STORAGE_KEY = 'coursecorrect_access_verified';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -18,6 +20,13 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Access code gate
+  const [accessVerified, setAccessVerified] = useState(() => {
+    return localStorage.getItem(ACCESS_STORAGE_KEY) === 'true';
+  });
+  const [accessCode, setAccessCode] = useState('');
+  const [accessError, setAccessError] = useState('');
 
   useEffect(() => {
     getCurrentUser().then((u) => {
@@ -39,6 +48,17 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
 
     return () => subscription.unsubscribe();
   }, [setUser]);
+
+  const handleAccessCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (accessCode.trim().toUpperCase() === 'COURSEHACK') {
+      localStorage.setItem(ACCESS_STORAGE_KEY, 'true');
+      setAccessVerified(true);
+      setAccessError('');
+    } else {
+      setAccessError('Invalid access code. Please try again.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,10 +96,78 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
     );
   }
 
+  // Already authenticated — pass through
   if (user) {
     return <>{children}</>;
   }
 
+  // Access code gate — shown before login form
+  if (!accessVerified) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center gap-1.5 text-sm text-text-muted hover:text-accent transition-colors mb-6"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to home
+            </button>
+          )}
+
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
+              <img src="/public/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
+            </div>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">Course Correction</h1>
+            <p className="text-text-muted text-sm mt-2 max-w-xs mx-auto">
+              Enter your access code to continue. If you're a hackathon judge, check your welcome email for the code.
+            </p>
+          </div>
+
+          <form onSubmit={handleAccessCode} className="bg-card border border-surface-border rounded-2xl p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">Access Code</label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                <input
+                  type="text"
+                  value={accessCode}
+                  onChange={(e) => { setAccessCode(e.target.value); setAccessError(''); }}
+                  placeholder="Enter your access code"
+                  autoFocus
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-background border border-surface-border rounded-lg text-text-primary placeholder-text-muted text-sm focus:ring-2 focus:ring-accent focus:border-accent outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {accessError && (
+              <div className="text-sm text-warning bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+                {accessError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-background text-sm bg-accent hover:bg-accent/90 shadow-lg shadow-accent/20 transition-all"
+            >
+              Continue
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <p className="text-xs text-text-muted text-center pt-1">
+              Don't have a code? <button type="button" onClick={onBack} className="text-accent hover:underline">Try the free demo</button> instead.
+            </p>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Login form — shown after access code is verified
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -97,18 +185,8 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <defs>
-                <linearGradient id="auth-logo" x1="0%" y1="100%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#FF6B5B" />
-                  <stop offset="50%" stopColor="#4A3AFF" />
-                  <stop offset="100%" stopColor="#00C9A7" />
-                </linearGradient>
-              </defs>
-              <path d="M 8 34 C 6 24, 12 10, 22 12 C 32 14, 34 26, 26 30 C 18 34, 12 26, 16 18 C 19 12, 26 8, 33 6" stroke="url(#auth-logo)" strokeWidth="3" strokeLinecap="round" fill="none" />
-              <path d="M 30 3.5 L 34 6 L 30.5 8.5" stroke="#00C9A7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
+          <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <img src="/public/logo-cropped.png" alt="Course Correction" width={56} height={56} style={{ objectFit: 'contain' }} />
           </div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">Course Correction</h1>
           <p className="text-text-muted text-sm mt-1">
@@ -117,7 +195,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
         </div>
 
         {/* Google Sign In */}
-        <div className="bg-card border border-surface-border rounded-2xl p-6 space-y-4">
+        <div className="bg-card border border-surface-border rounded-2xl p-6">
           <button
             type="button"
             onClick={async () => {
@@ -138,12 +216,13 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
             </svg>
             Continue with Google
           </button>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-surface-border" />
-            <span className="text-xs text-text-muted">or continue with email</span>
-            <div className="flex-1 h-px bg-surface-border" />
-          </div>
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-surface-border" />
+          <span className="text-xs text-text-muted">or continue with email</span>
+          <div className="flex-1 h-px bg-surface-border" />
         </div>
 
         {/* Email Form */}

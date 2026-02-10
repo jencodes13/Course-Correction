@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Upload,
   Palette,
@@ -19,21 +19,35 @@ import {
   Tag,
   Check,
   ImagePlus,
-  Paintbrush
+  Paintbrush,
+  ShieldCheck,
+  HelpCircle,
+  AlertOctagon,
 } from 'lucide-react';
 import {
   inferSectorFromContent,
   generateDemoSlidesEnhanced,
   scanCourseFindings,
   generateAsset,
-  generatePresentationTheme
+  generatePresentationTheme,
+  verifyFindings,
+  generateQuizQuestions,
+  generateCourseSummary,
+  generateStudyGuide,
+  generateSlideContent,
+  selectInfographicSlide,
+  QuizQuestion,
+  StudyGuideSection,
+  GeneratedSlide,
+  SlideContentResult,
 } from '../services/geminiService';
 import { processFileForUpload } from '../services/supabaseClient';
 import { extractPdfPageImages } from '../utils/pdfPageRenderer';
 import { extractPdfPageText } from '../utils/pdfTextExtractor';
-import { recolorSlideImage } from '../utils/pdfColorRemapper';
 import { useGoogleDrivePicker } from '../hooks/useGoogleDrivePicker';
 import GoogleDriveButton from './GoogleDriveButton';
+import RegulatoryOutput from './RegulatoryOutput';
+import VisualOutput from './VisualOutput';
 import {
   UpdateMode,
   InferredSector,
@@ -44,7 +58,12 @@ import {
   CourseFinding,
   FindingsScanResult,
   ExtractedPageData,
-  GeneratedTheme
+  GeneratedTheme,
+  ThemeOption,
+  AgentState,
+  AgentStatus,
+  VerifiedFinding,
+  CourseSummaryResult,
 } from '../types';
 import LocationInput from './LocationInput';
 
@@ -97,6 +116,98 @@ const STYLES = [
   { id: 'minimal', label: 'Minimalist', description: 'Near-white, monochrome, maximum whitespace' },
   { id: 'academic', label: 'Academic & Formal', description: 'Dark navy, gold accents, scholarly authority' }
 ];
+
+const FONT_OPTIONS = [
+  { name: 'Inter', description: 'Clean & modern' },
+  { name: 'Poppins', description: 'Friendly & geometric' },
+  { name: 'Playfair Display', description: 'Elegant & editorial' },
+  { name: 'Source Sans Pro', description: 'Professional & neutral' },
+  { name: 'Raleway', description: 'Light & contemporary' },
+  { name: 'Merriweather', description: 'Warm & readable' },
+];
+
+// Static theme options — no AI generation needed
+const STATIC_THEME_OPTIONS: ThemeOption[] = [
+  {
+    name: 'Clean & Light',
+    description: 'Airy and modern with warm white space and teal accents',
+    backgroundColor: '#fafaf9', textColor: '#1c1917', primaryColor: '#0d9488',
+    secondaryColor: '#5eead4', mutedTextColor: '#78716c', fontSuggestion: 'Inter', layoutStyle: 'minimal',
+  },
+  {
+    name: 'Midnight Bold',
+    description: 'High-contrast dark navy with bright amber highlights',
+    backgroundColor: '#0f172a', textColor: '#f8fafc', primaryColor: '#f59e0b',
+    secondaryColor: '#fbbf24', mutedTextColor: '#94a3b8', fontSuggestion: 'Space Grotesk', layoutStyle: 'bold',
+  },
+  {
+    name: 'Warm Sunset',
+    description: 'Inviting cream tones with warm red energy',
+    backgroundColor: '#fef3c7', textColor: '#451a03', primaryColor: '#dc2626',
+    secondaryColor: '#f97316', mutedTextColor: '#92400e', fontSuggestion: 'DM Sans', layoutStyle: 'organic',
+  },
+  {
+    name: 'Ocean Professional',
+    description: 'Deep blue authority with cool sky blue accents',
+    backgroundColor: '#0c4a6e', textColor: '#e0f2fe', primaryColor: '#38bdf8',
+    secondaryColor: '#7dd3fc', mutedTextColor: '#7dd3fc', fontSuggestion: 'IBM Plex Sans', layoutStyle: 'structured',
+  },
+  {
+    name: 'Forest & Gold',
+    description: 'Rich green prestige with gold accent flourishes',
+    backgroundColor: '#14532d', textColor: '#f0fdf4', primaryColor: '#eab308',
+    secondaryColor: '#a3e635', mutedTextColor: '#86efac', fontSuggestion: 'Playfair Display', layoutStyle: 'editorial',
+  },
+  {
+    name: 'Neon Tech',
+    description: 'Edgy dark zinc with vibrant purple glow',
+    backgroundColor: '#18181b', textColor: '#e4e4e7', primaryColor: '#a855f7',
+    secondaryColor: '#c084fc', mutedTextColor: '#71717a', fontSuggestion: 'Outfit', layoutStyle: 'geometric',
+  },
+];
+
+// Agent definitions for orchestration panel (regulatory/full mode — 4 agents)
+const INITIAL_AGENTS: Omit<AgentState, 'status' | 'progress'>[] = [
+  { id: 'fact-checker', name: 'Fact Checker', color: '#3b82f6', icon: 'shield-check' },
+  { id: 'slide-designer', name: 'Slide Designer', color: '#c8956c', icon: 'palette' },
+  { id: 'quiz-builder', name: 'Quiz Builder', color: '#8b5cf6', icon: 'help-circle' },
+  { id: 'course-summary', name: 'Course Summary', color: '#10b981', icon: 'file-text' },
+];
+
+// Agent definitions for visual/design mode — 3 agents
+const VISUAL_AGENTS: Omit<AgentState, 'status' | 'progress'>[] = [
+  { id: 'study-guide-agent', name: 'Study Guide Agent', color: '#10b981', icon: 'file-text' },
+  { id: 'slide-deck-agent', name: 'Slide Deck Agent', color: '#c8956c', icon: 'palette' },
+  { id: 'quiz-agent', name: 'Quiz Agent', color: '#8b5cf6', icon: 'help-circle' },
+];
+
+// Agent definitions for full mode — both regulatory + visual
+const FULL_AGENTS: Omit<AgentState, 'status' | 'progress'>[] = [
+  { id: 'fact-checker', name: 'Fact Checker', color: '#3b82f6', icon: 'shield-check' },
+  { id: 'slide-designer', name: 'Slide Designer', color: '#ef4444', icon: 'palette' },
+  { id: 'study-guide-agent', name: 'Study Guide Agent', color: '#10b981', icon: 'file-text' },
+  { id: 'slide-deck-agent', name: 'Slide Deck Agent', color: '#c8956c', icon: 'palette' },
+  { id: 'quiz-agent', name: 'Quiz Agent', color: '#8b5cf6', icon: 'help-circle' },
+  { id: 'course-summary', name: 'Course Summary', color: '#06b6d4', icon: 'file-text' },
+];
+
+const AGENT_PROGRESS_TEXT: Record<string, string[]> = {
+  'fact-checker': ['Searching current standards...', 'Cross-referencing sources...', 'Verifying claims...', 'Compiling verification report...'],
+  'slide-designer': ['Reading course materials...', 'Designing layouts...', 'Generating visuals...', 'Polishing slides...'],
+  'quiz-builder': ['Identifying key concepts...', 'Crafting questions...', 'Validating answers...', 'Finalizing quiz...'],
+  'course-summary': ['Analyzing structure...', 'Mapping objectives...', 'Building overview...', 'Summarizing course...'],
+  'study-guide-agent': ['Reading course materials...', 'Extracting key concepts...', 'Fact-checking with Gemini Search...', 'Finalizing study guide...'],
+  'slide-deck-agent': ['Analyzing content structure...', 'Generating slide content...', 'Applying theme styles...', 'Verifying data coverage...'],
+  'quiz-agent': ['Waiting for study guide...', 'Identifying testable concepts...', 'Crafting exam questions...', 'Finalizing quiz module...'],
+};
+
+// Lucide icon map for agent cards
+const agentIconMap: Record<string, React.ReactNode> = {
+  'shield-check': <ShieldCheck className="w-5 h-5" />,
+  'palette': <Palette className="w-5 h-5" />,
+  'help-circle': <HelpCircle className="w-5 h-5" />,
+  'file-text': <FileText className="w-5 h-5" />,
+};
 
 const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // Flow state
@@ -156,7 +267,6 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // Design mode — text extraction + AI theme
   const [extractedPages, setExtractedPages] = useState<ExtractedPageData[]>([]);
   const [generatedTheme, setGeneratedTheme] = useState<GeneratedTheme | null>(null);
-  const [recoloredImages, setRecoloredImages] = useState<Record<number, string>>({}); // pageNumber → recolored data URL
   const [brandLogo, setBrandLogo] = useState<string | null>(null); // data URL
   const [themeQuestionnaire, setThemeQuestionnaire] = useState<{
     brandPersonality?: string;
@@ -165,6 +275,33 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     primaryColor?: string;
   }>({});
   const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
+
+  // AI-generated theme options (step 5)
+  const [aiThemeOptions] = useState<ThemeOption[]>(STATIC_THEME_OPTIONS);
+  const isLoadingThemeOptions = false;
+  const [selectedThemeIndex, setSelectedThemeIndex] = useState<number | null>(null);
+
+  // Font selection (step 5 — uses static FONT_OPTIONS)
+  const [selectedFontIndex, setSelectedFontIndex] = useState<number | null>(null);
+
+  // Agent orchestration state
+  const [agentPhase, setAgentPhase] = useState<'idle' | 'running' | 'complete'>('idle');
+  const [agents, setAgents] = useState<AgentState[]>([]);
+  const [verificationResults, setVerificationResults] = useState<VerifiedFinding[]>([]);
+  const [quizResults, setQuizResults] = useState<QuizQuestion[]>([]);
+  const [courseSummaryResult, setCourseSummaryResult] = useState<CourseSummaryResult | null>(null);
+  const [showResults, setShowResults] = useState(false);
+  const agentProgressIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+
+  // Full mode output tab: switch between regulatory and design views
+  const [fullModeTab, setFullModeTab] = useState<'regulatory' | 'design'>('regulatory');
+
+  // Pre-generated content from visual mode agent orchestration
+  const [preGeneratedStudyGuide, setPreGeneratedStudyGuide] = useState<StudyGuideSection[]>([]);
+  const [preGeneratedQuiz, setPreGeneratedQuiz] = useState<QuizQuestion[]>([]);
+  const [preGeneratedSlides, setPreGeneratedSlides] = useState<GeneratedSlide[]>([]);
+  const [slideVerification, setSlideVerification] = useState<SlideContentResult['dataVerification'] | null>(null);
+  const [slideDisclaimer, setSlideDisclaimer] = useState<string | undefined>();
 
   // Extract PDF pages from a raw File object (works regardless of file size)
   const extractPdfFromRawFile = useCallback((file: File) => {
@@ -332,6 +469,21 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     document.head.appendChild(link);
   }, [generatedTheme?.fontSuggestion]);
 
+  // Theme options are now static — no AI generation needed
+
+  // Preload all 6 static font options from Google Fonts
+  useEffect(() => {
+    FONT_OPTIONS.forEach(f => {
+      const linkId = `google-font-${f.name.replace(/\s+/g, '-')}`;
+      if (document.getElementById(linkId)) return;
+      const link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f.name)}:wght@400;600;700&display=swap`;
+      document.head.appendChild(link);
+    });
+  }, []);
+
   // Infer sector when moving to step 3
   useEffect(() => {
     if (step === 3 && !inferredSector && (files.length > 0 || topic)) {
@@ -368,8 +520,15 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
       // Extract the primary sector to match SECTORS dropdown
       const sectorParts = result.sector.split(',').map((s: string) => s.trim());
-      const matchedSector = SECTORS.find(s => sectorParts.includes(s)) || sectorParts[0] || result.sector;
-      setSelectedSector(matchedSector);
+      // Try exact match first, then case-insensitive partial match, then first part
+      const matchedSector = SECTORS.find(s => sectorParts.includes(s))
+        || SECTORS.find(s => sectorParts.some(sp => s.toLowerCase().includes(sp.toLowerCase()) || sp.toLowerCase().includes(s.toLowerCase())))
+        || (SECTORS.includes(sectorParts[0]) ? sectorParts[0] : '')
+        || result.sector;
+      if (matchedSector && SECTORS.includes(matchedSector)) {
+        setSelectedSector(matchedSector);
+      }
+      // If no SECTORS match, leave dropdown empty so user picks manually
 
       // Phase 5: done — brief hold before transitioning
       setAnalysisPhase(5);
@@ -445,58 +604,161 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     }
   }, [step]);
 
-  // Generate slides
+  // Helper: update a single agent's state
+  const updateAgent = (agentId: string, updates: Partial<AgentState>) => {
+    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
+  };
+
+  // Helper: start cycling progress text for an agent
+  const startProgressCycle = (agentId: string) => {
+    const texts = AGENT_PROGRESS_TEXT[agentId] || ['Working...'];
+    let idx = 0;
+    updateAgent(agentId, { progress: texts[0] });
+    const interval = setInterval(() => {
+      idx = (idx + 1) % texts.length;
+      updateAgent(agentId, { progress: texts[idx] });
+    }, 2500);
+    agentProgressIntervals.current[agentId] = interval;
+  };
+
+  // Helper: stop cycling progress text for an agent
+  const stopProgressCycle = (agentId: string) => {
+    if (agentProgressIntervals.current[agentId]) {
+      clearInterval(agentProgressIntervals.current[agentId]);
+      delete agentProgressIntervals.current[agentId];
+    }
+  };
+
+  // Cleanup progress intervals on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(agentProgressIntervals.current).forEach(clearInterval);
+    };
+  }, []);
+
+  // Generate slides — multi-agent orchestration
   const handleGenerate = async () => {
     if (!updateMode || !selectedSector) return;
 
     setIsProcessing(true);
     setError(null);
 
-    try {
-      // Pass approved findings + user context + design preferences to guided generation
-      const approved = findings.filter(f => approvedFindingIds.has(f.id));
-      const demoResult = await generateDemoSlidesEnhanced(
-        topic,
-        selectedSector,
-        location || 'United States',
-        updateMode,
-        style,
-        files,
-        approved.length > 0 ? approved : undefined,
-        userContext || undefined,
-        Object.keys(designQuestions).length > 0 ? designQuestions : undefined
-      );
-      setResult(demoResult);
-      setStep(6);
+    // Initialize all 4 agents
+    const initialAgents: AgentState[] = INITIAL_AGENTS.map(a => ({
+      ...a,
+      status: 'idle' as AgentStatus,
+      progress: 'Waiting...',
+    }));
+    setAgents(initialAgents);
+    setAgentPhase('running');
+    setShowResults(false);
+    setStep(6);
 
-      // Fire off parallel image generation for each slide with an imagePrompt
-      const slidesWithPrompts = demoResult.slides
-        .map((s, i) => ({ index: i, prompt: s.imagePrompt }))
-        .filter((s): s is { index: number; prompt: string } => !!s.prompt);
+    const approved = findings.filter(f => approvedFindingIds.has(f.id));
 
-      if (slidesWithPrompts.length > 0) {
-        slidesWithPrompts.forEach(async ({ index, prompt }) => {
-          try {
-            const imageUrl = await generateAsset(prompt);
-            if (imageUrl) {
-              setResult(prev => {
-                if (!prev) return prev;
-                const updated = { ...prev, slides: [...prev.slides] };
-                updated.slides[index] = { ...updated.slides[index], imageUrl };
-                return updated;
-              });
-            }
-          } catch (err) {
-            console.warn(`Image gen failed for slide ${index}:`, err);
-          }
+    // Launch all 4 agents in parallel with staggered starts
+    const launchAgent = async (
+      agentId: string,
+      staggerMs: number,
+      work: () => Promise<void>,
+    ) => {
+      await new Promise(r => setTimeout(r, staggerMs));
+      updateAgent(agentId, { status: 'working', startedAt: Date.now() });
+      startProgressCycle(agentId);
+      try {
+        await work();
+        stopProgressCycle(agentId);
+        updateAgent(agentId, { status: 'complete', completedAt: Date.now() });
+      } catch (err) {
+        stopProgressCycle(agentId);
+        console.error(`Agent ${agentId} error:`, err);
+        updateAgent(agentId, {
+          status: 'error',
+          error: String(err),
+          progress: 'Failed',
+          completedAt: Date.now(),
         });
       }
-    } catch (err) {
-      console.error('Generation error:', err);
-      setError('Failed to generate slides. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
+    };
+
+    const agentPromises = Promise.allSettled([
+      // Agent 1: Fact Checker
+      launchAgent('fact-checker', 0, async () => {
+        if (approved.length > 0) {
+          const vResult = await verifyFindings(approved, selectedSector, location || 'United States');
+          setVerificationResults(vResult.findings);
+          updateAgent('fact-checker', {
+            result: `${vResult.findings.length} findings verified`,
+          });
+        } else {
+          updateAgent('fact-checker', { result: 'No findings to verify' });
+        }
+      }),
+
+      // Agent 2: Slide Designer
+      launchAgent('slide-designer', 300, async () => {
+        const demoResult = await generateDemoSlidesEnhanced(
+          topic,
+          selectedSector,
+          location || 'United States',
+          updateMode,
+          style,
+          files,
+          approved.length > 0 ? approved : undefined,
+          userContext || undefined,
+          Object.keys(designQuestions).length > 0 ? designQuestions : undefined
+        );
+        setResult(demoResult);
+        updateAgent('slide-designer', {
+          result: `${demoResult.slides.length} slides generated`,
+        });
+
+        // Fire off parallel image generation for each slide with an imagePrompt
+        const slidesWithPrompts = demoResult.slides
+          .map((s, i) => ({ index: i, prompt: s.imagePrompt }))
+          .filter((s): s is { index: number; prompt: string } => !!s.prompt);
+
+        if (slidesWithPrompts.length > 0) {
+          slidesWithPrompts.forEach(async ({ index, prompt }) => {
+            try {
+              const imageUrl = await generateAsset(prompt);
+              if (imageUrl) {
+                setResult(prev => {
+                  if (!prev) return prev;
+                  const updated = { ...prev, slides: [...prev.slides] };
+                  updated.slides[index] = { ...updated.slides[index], imageUrl };
+                  return updated;
+                });
+              }
+            } catch (err) {
+              console.warn(`Image gen failed for slide ${index}:`, err);
+            }
+          });
+        }
+      }),
+
+      // Agent 3: Quiz Builder
+      launchAgent('quiz-builder', 600, async () => {
+        const qResult = await generateQuizQuestions(topic, selectedSector, files);
+        setQuizResults(qResult.questions);
+        updateAgent('quiz-builder', {
+          result: `${qResult.questions.length} questions created`,
+        });
+      }),
+
+      // Agent 4: Course Summary
+      launchAgent('course-summary', 200, async () => {
+        const sResult = await generateCourseSummary(topic, selectedSector, files);
+        setCourseSummaryResult(sResult);
+        updateAgent('course-summary', {
+          result: sResult.courseTitle || 'Summary ready',
+        });
+      }),
+    ]);
+
+    await agentPromises;
+    setAgentPhase('complete');
+    setIsProcessing(false);
   };
 
   // Build slides from extracted text + generated theme (design mode — no AI for content)
@@ -515,26 +777,29 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
       })
       .slice(0, 3);
 
+    const layoutCycle = ['hero', 'two-column', 'stats-highlight'] as const;
+    const changeSummaryCycle = ['REDESIGNED', 'VISUAL HIERARCHY', 'MODERNIZED LAYOUT'];
+
     const slides: DemoSlideEnhanced[] = candidates.map((page, idx) => ({
       id: `slide-${idx + 1}`,
       before: {
         title: page.title || `Page ${page.pageNumber}`,
-        subtitle: '',
-        bullets: [],
+        subtitle: page.subtitle || '',
+        bullets: page.bullets || [],
         citationIds: [],
         sourcePageNumber: page.pageNumber,
       },
       after: {
         title: page.title || `Page ${page.pageNumber}`,
-        subtitle: '',
-        bullets: [],
+        subtitle: page.subtitle || '',
+        bullets: page.bullets || [],
         citationIds: [],
         sourcePageNumber: page.pageNumber,
       },
-      changesSummary: 'REDESIGNED',
+      changesSummary: changeSummaryCycle[idx % changeSummaryCycle.length],
       visualStyle: {
         accentColor: theme.primaryColor,
-        layout: 'hero' as const,
+        layout: layoutCycle[idx % layoutCycle.length],
         pageClassification: page.classification,
       },
     }));
@@ -552,17 +817,8 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     };
   }, [pageImages, selectedSector, location]);
 
-  // Vibe presets — these define the exact recoloring targets.
-  // Keeping them here (not just in step 5 JSX) so handleDesignGenerate can access them.
-  const VIBE_THEMES: Record<string, { bg: string; text: string; accent: string; font: string; reasoning: string }> = {
-    'light-minimal': { bg: '#f8f9fa', text: '#1e293b', accent: '#64748b', font: 'Inter', reasoning: 'Clean minimal palette with maximum whitespace' },
-    'dark-bold':     { bg: '#0f172a', text: '#f1f5f9', accent: '#3b82f6', font: 'Space Grotesk', reasoning: 'High-contrast dark mode with bold blue accents' },
-    'colorful-warm': { bg: '#1c1917', text: '#fef3c7', accent: '#ea580c', font: 'DM Sans', reasoning: 'Warm dark tones with vibrant orange energy' },
-    'structured-corporate': { bg: '#0c1222', text: '#e2e8f0', accent: '#1d4ed8', font: 'IBM Plex Sans', reasoning: 'Navy corporate palette with institutional authority' },
-  };
-
-  // Generate theme and build visual result (design mode)
-  const handleDesignGenerate = async () => {
+  // Generate theme and build visual result with agent orchestration (design mode)
+  const handleDesignGenerateWithAgents = async () => {
     setIsGeneratingTheme(true);
     setError(null);
 
@@ -573,49 +829,320 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
         return;
       }
 
-      // Use the selected vibe's predefined colors — these are reliable and dramatic
-      const vibeId = themeQuestionnaire.brandPersonality || 'dark-bold';
-      const vibePreset = VIBE_THEMES[vibeId] || VIBE_THEMES['dark-bold'];
+      // Use the AI-generated or fallback theme option
+      const themes = aiThemeOptions || [];
+      const selected = selectedThemeIndex !== null && themes[selectedThemeIndex]
+        ? themes[selectedThemeIndex]
+        : themes[0];
+
+      if (!selected) {
+        setError('Please select a theme first.');
+        setIsGeneratingTheme(false);
+        return;
+      }
 
       // If user provided a custom brand color, use it as the accent
       const userColor = themeQuestionnaire.primaryColor;
+      const selectedFont = selectedFontIndex !== null
+        ? FONT_OPTIONS[selectedFontIndex].name
+        : selected.fontSuggestion;
 
       const theme: GeneratedTheme = {
-        backgroundColor: vibePreset.bg,
-        textColor: vibePreset.text,
-        primaryColor: userColor || vibePreset.accent,
-        secondaryColor: vibePreset.accent,
-        mutedTextColor: vibePreset.text + '99',
-        fontSuggestion: vibePreset.font,
-        layoutStyle: 'geometric',
-        designReasoning: vibePreset.reasoning,
+        backgroundColor: selected.backgroundColor,
+        textColor: selected.textColor,
+        primaryColor: userColor || selected.primaryColor,
+        secondaryColor: selected.secondaryColor,
+        mutedTextColor: selected.mutedTextColor,
+        fontSuggestion: selectedFont,
+        layoutStyle: selected.layoutStyle,
+        designReasoning: selected.description,
       };
       setGeneratedTheme(theme);
 
+      // Build the basic visual result (used as fallback)
       const demoResult = buildVisualResult(extractedPages, theme);
-
-      // Recolor the selected page images with the vibe colors
-      const recolored: Record<number, string> = {};
-      await Promise.all(
-        demoResult.slides.map(async (slide) => {
-          const pageNum = slide.before.sourcePageNumber;
-          if (pageNum && pageNum > 0 && pageNum <= pageImages.length) {
-            recolored[pageNum] = await recolorSlideImage(
-              pageImages[pageNum - 1],
-              theme.backgroundColor,
-              theme.textColor,
-            );
-          }
-        })
-      );
-      setRecoloredImages(recolored);
-
       setResult(demoResult);
+
+      // Initialize 3 visual agents and show orchestration panel
+      const initialAgents: AgentState[] = VISUAL_AGENTS.map(a => ({
+        ...a,
+        status: 'idle' as AgentStatus,
+        progress: 'Waiting...',
+      }));
+      setAgents(initialAgents);
+      setAgentPhase('running');
+      setShowResults(false);
       setStep(6);
+      setIsGeneratingTheme(false);
+
+      // Helper to launch an agent with staggered start
+      const launchAgent = async (
+        agentId: string,
+        staggerMs: number,
+        work: () => Promise<void>,
+      ) => {
+        await new Promise(r => setTimeout(r, staggerMs));
+        updateAgent(agentId, { status: 'working', startedAt: Date.now() });
+        startProgressCycle(agentId);
+        try {
+          await work();
+          stopProgressCycle(agentId);
+          updateAgent(agentId, { status: 'complete', completedAt: Date.now() });
+        } catch (err) {
+          stopProgressCycle(agentId);
+          console.error(`Agent ${agentId} error:`, err);
+          updateAgent(agentId, {
+            status: 'error',
+            error: String(err),
+            progress: 'Failed',
+            completedAt: Date.now(),
+          });
+        }
+      };
+
+      // Study guide + Slide deck run in parallel. Quiz waits for study guide.
+      let studyGuideSections: StudyGuideSection[] = [];
+
+      console.log('[Visual Agents] Starting orchestration', { topic, selectedSector, fileCount: files.length, fileNames: files.map(f => f.name) });
+
+      const studyGuidePromise = launchAgent('study-guide-agent', 0, async () => {
+        console.log('[Study Guide Agent] Calling generateStudyGuide...');
+        const sgResult = await generateStudyGuide(topic, selectedSector, files);
+        console.log('[Study Guide Agent] Result:', sgResult.sections.length, 'sections');
+        if (sgResult.sections.length === 0) {
+          throw new Error('Study guide returned 0 sections — API may have failed');
+        }
+        studyGuideSections = sgResult.sections;
+        setPreGeneratedStudyGuide(sgResult.sections);
+        updateAgent('study-guide-agent', {
+          result: `${sgResult.sections.length} sections generated`,
+        });
+      });
+
+      const slideDeckPromise = launchAgent('slide-deck-agent', 200, async () => {
+        console.log('[Slide Deck Agent] Calling generateSlideContent...');
+        const scResult = await generateSlideContent(
+          topic,
+          selectedSector,
+          files,
+          { name: selected.name, description: selected.description },
+        );
+        console.log('[Slide Deck Agent] Result:', scResult.slides.length, 'slides');
+        if (scResult.slides.length === 0) {
+          throw new Error('Slide content returned 0 slides — API may have failed');
+        }
+        setSlideVerification(scResult.dataVerification || null);
+        if (scResult.disclaimer) setSlideDisclaimer(scResult.disclaimer);
+
+        // Phase 2: Gemini Reasoning picks the best slide for an infographic
+        updateAgent('slide-deck-agent', { progress: 'Selecting slide for infographic...' });
+        console.log('[Slide Deck Agent] Selecting infographic slide...');
+        const infographicSelection = await selectInfographicSlide(scResult.slides, topic, selectedSector);
+        console.log('[Slide Deck Agent] Selected slide', infographicSelection.selectedSlideIndex, ':', infographicSelection.reasoning);
+
+        // Phase 3: Generate infographic image
+        updateAgent('slide-deck-agent', { progress: 'Generating infographic...' });
+        console.log('[Slide Deck Agent] Generating infographic with prompt:', infographicSelection.imagePrompt.slice(0, 100));
+        const infographicUrl = await generateAsset(infographicSelection.imagePrompt);
+
+        // Attach infographic to the selected slide
+        const slidesWithInfographic = scResult.slides.map((s, i) =>
+          i === infographicSelection.selectedSlideIndex && infographicUrl
+            ? { ...s, imageUrl: infographicUrl }
+            : s
+        );
+        setPreGeneratedSlides(slidesWithInfographic);
+
+        updateAgent('slide-deck-agent', {
+          result: `${scResult.slides.length} slides + infographic${scResult.dataVerification ? ` — ${scResult.dataVerification.coveragePercentage}% coverage` : ''}`,
+        });
+      });
+
+      // Wait for study guide to finish before launching quiz
+      await studyGuidePromise;
+
+      // Launch quiz agent WITH study guide sections as context
+      const quizPromise = launchAgent('quiz-agent', 0, async () => {
+        console.log('[Quiz Agent] Calling generateQuizQuestions with', studyGuideSections.length, 'study guide sections...');
+        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections);
+        console.log('[Quiz Agent] Result:', qResult.questions.length, 'questions');
+        if (qResult.questions.length === 0) {
+          throw new Error('Quiz returned 0 questions — API may have failed');
+        }
+        setPreGeneratedQuiz(qResult.questions);
+        updateAgent('quiz-agent', {
+          result: `${qResult.questions.length} questions created`,
+        });
+      });
+
+      // Wait for slide deck and quiz to finish
+      await Promise.allSettled([slideDeckPromise, quizPromise]);
+      setAgentPhase('complete');
+      setIsProcessing(false);
     } catch (err) {
-      console.error('Theme generation error:', err);
-      setError('Failed to generate theme. Please try again.');
-    } finally {
+      console.error('Design generation error:', err);
+      setError('Failed to generate design. Please try again.');
+      setIsGeneratingTheme(false);
+    }
+  };
+
+  // Full mode: combined regulatory + visual agent orchestration
+  const handleFullGenerate = async () => {
+    setIsGeneratingTheme(true);
+    setError(null);
+
+    try {
+      // Build theme from selected vibe (same as visual mode)
+      const themes = aiThemeOptions || [];
+      const selected = selectedThemeIndex !== null && themes[selectedThemeIndex]
+        ? themes[selectedThemeIndex]
+        : themes[0];
+
+      if (selected) {
+        const userColor = themeQuestionnaire.primaryColor;
+        const selectedFont = selectedFontIndex !== null
+          ? FONT_OPTIONS[selectedFontIndex].name
+          : selected.fontSuggestion;
+
+        const theme: GeneratedTheme = {
+          backgroundColor: selected.backgroundColor,
+          textColor: selected.textColor,
+          primaryColor: userColor || selected.primaryColor,
+          secondaryColor: selected.secondaryColor,
+          mutedTextColor: selected.mutedTextColor,
+          fontSuggestion: selectedFont,
+          layoutStyle: selected.layoutStyle,
+          designReasoning: selected.description,
+        };
+        setGeneratedTheme(theme);
+
+        // Build the basic visual result as fallback
+        const demoResult = buildVisualResult(extractedPages, theme);
+        setResult(demoResult);
+      }
+
+      // Initialize 6 agents (regulatory + visual)
+      const initialAgents: AgentState[] = FULL_AGENTS.map(a => ({
+        ...a,
+        status: 'idle' as AgentStatus,
+        progress: 'Waiting...',
+      }));
+      setAgents(initialAgents);
+      setAgentPhase('running');
+      setShowResults(false);
+      setStep(6);
+      setIsGeneratingTheme(false);
+
+      const approved = findings.filter(f => approvedFindingIds.has(f.id));
+      let studyGuideSections: StudyGuideSection[] = [];
+
+      // Helper: launch an agent with staggered start
+      const launchAgentFull = async (
+        agentId: string,
+        staggerMs: number,
+        work: () => Promise<void>,
+      ) => {
+        await new Promise(r => setTimeout(r, staggerMs));
+        updateAgent(agentId, { status: 'working', startedAt: Date.now() });
+        startProgressCycle(agentId);
+        try {
+          await work();
+          stopProgressCycle(agentId);
+          updateAgent(agentId, { status: 'complete', completedAt: Date.now() });
+        } catch (err) {
+          stopProgressCycle(agentId);
+          console.error(`Agent ${agentId} error:`, err);
+          updateAgent(agentId, {
+            status: 'error',
+            error: String(err),
+            progress: 'Failed',
+            completedAt: Date.now(),
+          });
+        }
+      };
+
+      // Launch all independent agents in parallel
+      // Regulatory: Fact Checker, Slide Designer, Course Summary
+      const factCheckerPromise = launchAgentFull('fact-checker', 0, async () => {
+        if (approved.length > 0) {
+          const vResult = await verifyFindings(approved, selectedSector, location || 'United States');
+          setVerificationResults(vResult.findings);
+          updateAgent('fact-checker', { result: `${vResult.findings.length} findings verified` });
+        } else {
+          updateAgent('fact-checker', { result: 'No findings to verify' });
+        }
+      });
+
+      const slideDesignerPromise = launchAgentFull('slide-designer', 300, async () => {
+        const demoResult = await generateDemoSlidesEnhanced(
+          topic, selectedSector, location || 'United States', updateMode || 'full',
+          style, files,
+          approved.length > 0 ? approved : undefined,
+          userContext || undefined,
+          Object.keys(designQuestions).length > 0 ? designQuestions : undefined
+        );
+        setResult(demoResult);
+        updateAgent('slide-designer', { result: `${demoResult.slides.length} slides generated` });
+      });
+
+      const courseSummaryPromise = launchAgentFull('course-summary', 200, async () => {
+        const sResult = await generateCourseSummary(topic, selectedSector, files);
+        setCourseSummaryResult(sResult);
+        updateAgent('course-summary', { result: sResult.courseTitle || 'Summary ready' });
+      });
+
+      // Visual: Study Guide (then Quiz), Slide Deck (then infographic)
+      const studyGuidePromise = launchAgentFull('study-guide-agent', 100, async () => {
+        const sgResult = await generateStudyGuide(topic, selectedSector, files);
+        if (sgResult.sections.length === 0) throw new Error('Study guide returned 0 sections');
+        studyGuideSections = sgResult.sections;
+        setPreGeneratedStudyGuide(sgResult.sections);
+        updateAgent('study-guide-agent', { result: `${sgResult.sections.length} sections generated` });
+      });
+
+      const slideDeckPromise = launchAgentFull('slide-deck-agent', 400, async () => {
+        const scResult = await generateSlideContent(
+          topic, selectedSector, files,
+          selected ? { name: selected.name, description: selected.description } : undefined,
+        );
+        if (scResult.slides.length === 0) throw new Error('Slide content returned 0 slides');
+        setSlideVerification(scResult.dataVerification || null);
+        if (scResult.disclaimer) setSlideDisclaimer(scResult.disclaimer);
+
+        // Infographic selection + generation
+        updateAgent('slide-deck-agent', { progress: 'Selecting slide for infographic...' });
+        const infographicSelection = await selectInfographicSlide(scResult.slides, topic, selectedSector);
+        updateAgent('slide-deck-agent', { progress: 'Generating infographic...' });
+        const infographicUrl = await generateAsset(infographicSelection.imagePrompt);
+        const slidesWithInfographic = scResult.slides.map((s, i) =>
+          i === infographicSelection.selectedSlideIndex && infographicUrl
+            ? { ...s, imageUrl: infographicUrl } : s
+        );
+        setPreGeneratedSlides(slidesWithInfographic);
+        updateAgent('slide-deck-agent', { result: `${scResult.slides.length} slides + infographic` });
+      });
+
+      // Wait for study guide to finish, then launch quiz with study guide context
+      await studyGuidePromise;
+
+      const quizPromise = launchAgentFull('quiz-agent', 0, async () => {
+        const qResult = await generateQuizQuestions(topic, selectedSector, files, studyGuideSections);
+        if (qResult.questions.length === 0) throw new Error('Quiz returned 0 questions');
+        setPreGeneratedQuiz(qResult.questions);
+        setQuizResults(qResult.questions);
+        updateAgent('quiz-agent', { result: `${qResult.questions.length} questions created` });
+      });
+
+      // Wait for all remaining agents
+      await Promise.allSettled([
+        factCheckerPromise, slideDesignerPromise, courseSummaryPromise,
+        slideDeckPromise, quizPromise,
+      ]);
+      setAgentPhase('complete');
+      setIsProcessing(false);
+    } catch (err) {
+      console.error('Full generation error:', err);
+      setError('Failed to generate. Please try again.');
       setIsGeneratingTheme(false);
     }
   };
@@ -647,7 +1174,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
       }
     } else if (step === 5) {
       if (updateMode === 'visual') {
-        handleDesignGenerate();
+        handleDesignGenerateWithAgents();
       } else {
         handleGenerate();
       }
@@ -1110,10 +1637,14 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                       }`}>
                         {inferredSector.isAmbiguous
                           ? 'Multiple industries detected — please confirm the primary focus'
-                          : `Detected: ${selectedSector || inferredSector.sector.split(',')[0]?.trim()} (${inferredSector.confidence} confidence)`
+                          : `Detected: ${selectedSector || inferredSector.sector.split(',')[0]?.trim()}`
                         }
                       </p>
-                      <p className="text-text-muted mt-1 text-xs line-clamp-2">{inferredSector.reasoning}</p>
+                      {inferredSector.detectedTopics && inferredSector.detectedTopics.length > 0 && (
+                        <p className="text-text-muted mt-1 text-xs line-clamp-2">
+                          Topics: {inferredSector.detectedTopics.join(', ')}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1515,40 +2046,29 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 ))}
               </div>
 
-              {/* Blurred pro findings teaser — looks like more cards behind glass */}
+              {/* Pro findings teaser — realistic locked finding rows behind glass */}
               <div className="relative mb-6 overflow-hidden rounded-xl">
-                {/* Fake stacked finding cards */}
-                <div className="space-y-2 opacity-40">
-                  <div className="p-4 bg-surface rounded-lg border border-surface-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-16 h-3 bg-surface-border rounded-full" />
-                      <div className="w-2 h-2 rounded-full bg-surface-border" />
-                      <div className="w-10 h-3 bg-surface-border rounded-full" />
+                <div className="space-y-2">
+                  {[
+                    { title: 'Deprecated IAM Policy References', tag: 'Compliance', tagColor: 'accent' },
+                    { title: 'Missing Alt Text on Architecture Diagrams', tag: 'Accessibility', tagColor: 'warning' },
+                    { title: 'Outdated Service Naming Conventions', tag: 'Content', tagColor: 'text-muted' },
+                    { title: 'Visual Layout & Readability Improvements', tag: 'Design', tagColor: 'success' },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3.5 bg-surface/60 rounded-lg border border-surface-border flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 border-${item.tagColor}/40 flex-shrink-0 flex items-center justify-center`}>
+                        <div className={`w-1.5 h-1.5 rounded-full bg-${item.tagColor}/40`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-primary/70 truncate">{item.title}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider text-${item.tagColor}/50 bg-${item.tagColor}/10 px-2 py-0.5 rounded-full flex-shrink-0`}>{item.tag}</span>
                     </div>
-                    <div className="w-3/4 h-4 bg-surface-border rounded mb-1.5" />
-                    <div className="w-full h-3 bg-surface-border rounded" />
-                  </div>
-                  <div className="p-4 bg-surface rounded-lg border border-surface-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-14 h-3 bg-surface-border rounded-full" />
-                      <div className="w-2 h-2 rounded-full bg-surface-border" />
-                      <div className="w-12 h-3 bg-surface-border rounded-full" />
-                    </div>
-                    <div className="w-2/3 h-4 bg-surface-border rounded mb-1.5" />
-                    <div className="w-5/6 h-3 bg-surface-border rounded" />
-                  </div>
-                  <div className="p-4 bg-surface rounded-lg border border-surface-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-20 h-3 bg-surface-border rounded-full" />
-                      <div className="w-2 h-2 rounded-full bg-surface-border" />
-                      <div className="w-8 h-3 bg-surface-border rounded-full" />
-                    </div>
-                    <div className="w-4/5 h-4 bg-surface-border rounded" />
-                  </div>
+                  ))}
                 </div>
                 {/* Glass overlay */}
-                <div className="absolute inset-0 bg-gradient-to-b from-card/30 via-card/70 to-card flex flex-col items-center justify-end pb-4">
-                  <p className="text-sm font-semibold text-text-primary mb-1">
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/60 to-card flex flex-col items-center justify-end pb-5">
+                  <p className="text-sm font-bold text-accent mb-1">
                     {findingsScanResult?.totalEstimatedFindings
                       ? `${findingsScanResult.totalEstimatedFindings - totalFindings}+ more findings available`
                       : 'More findings available'
@@ -1666,34 +2186,9 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
 
   // --- STEP 5: Style Selection (Full mode) or Design Questionnaire (Visual mode) ---
   if (step === 5) {
-    // Visual mode: pick a vibe (visual thumbnails) + optional color & logo
-    if (updateMode === 'visual') {
-      const VIBES = [
-        {
-          id: 'light-minimal',
-          label: 'Light & Minimal',
-          desc: 'Soft cream background, clean typography, subtle slate accents',
-          bg: '#f8f9fa', accent: '#64748b', text: '#1e293b',
-        },
-        {
-          id: 'dark-bold',
-          label: 'Dark & Bold',
-          desc: 'Dark navy background, bright text, vivid blue accents',
-          bg: '#0f172a', accent: '#3b82f6', text: '#f1f5f9',
-        },
-        {
-          id: 'colorful-warm',
-          label: 'Colorful & Warm',
-          desc: 'Dark warm background, golden text, vibrant orange pops',
-          bg: '#1c1917', accent: '#ea580c', text: '#fef3c7',
-        },
-        {
-          id: 'structured-corporate',
-          label: 'Structured & Corporate',
-          desc: 'Deep navy background, crisp white text, professional blue',
-          bg: '#0c1222', accent: '#1d4ed8', text: '#e2e8f0',
-        },
-      ];
+    // Visual/Full mode: AI-generated theme options + optional color & logo
+    if (updateMode === 'visual' || updateMode === 'full') {
+      const themes = aiThemeOptions || [];
 
       const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -1709,141 +2204,231 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
         reader.readAsDataURL(file);
       };
 
-      const selectedVibe = VIBES.find(v => v.id === themeQuestionnaire.brandPersonality) || null;
+      const selectedTheme = selectedThemeIndex !== null ? themes[selectedThemeIndex] : null;
+
+      // Layout shape varies by layoutStyle
+      const renderLayoutAccent = (theme: ThemeOption) => {
+        switch (theme.layoutStyle) {
+          case 'organic':
+            return <div className="absolute" style={{ bottom: '10%', right: '8%', width: '22%', height: '22%', borderRadius: '50%', background: theme.primaryColor, opacity: 0.25 }} />;
+          case 'editorial':
+            return <div className="absolute" style={{ top: 0, right: 0, width: '35%', height: '100%', background: `linear-gradient(135deg, transparent 50%, ${theme.primaryColor}22 50%)` }} />;
+          case 'bold':
+            return <div className="absolute" style={{ top: '12%', right: '6%', width: '28%', height: '55%', background: theme.primaryColor, opacity: 0.15, borderRadius: 4 }} />;
+          case 'minimal':
+            return <div className="absolute" style={{ bottom: '15%', left: '14%', right: '14%', height: 1, background: theme.primaryColor, opacity: 0.3 }} />;
+          case 'structured':
+            return <div className="absolute" style={{ top: 0, right: 0, width: '40%', height: '100%', borderLeft: `2px solid ${theme.primaryColor}33`, background: `${theme.primaryColor}08` }} />;
+          default: // geometric
+            return <div className="absolute" style={{ top: '15%', right: '8%', width: '18%', height: '18%', background: theme.primaryColor, opacity: 0.2, transform: 'rotate(45deg)' }} />;
+        }
+      };
 
       return (
         <div className="min-h-screen flex flex-col items-center bg-background p-6 py-12 overflow-y-auto">
-          <div className="w-full max-w-lg bg-card p-8 rounded-3xl shadow-xl border border-surface-border my-auto">
+          <div className="w-full max-w-2xl bg-card p-8 rounded-3xl shadow-xl border border-surface-border my-auto">
             {renderProgressBar()}
             <h2 className="text-2xl font-bold text-center mb-2">Pick a vibe</h2>
             <p className="text-text-muted text-center mb-8">
-              Choose a direction, then customize with your brand color and logo.
+              {isLoadingThemeOptions
+                ? 'Curating design themes for your course...'
+                : 'Choose a direction, then customize with your brand color and logo.'}
             </p>
 
             <div className="space-y-6">
-              {/* Visual style thumbnails — 2x2 grid with mini slide previews */}
-              <div className="grid grid-cols-2 gap-3">
-                {VIBES.map(vibe => {
-                  const isSelected = themeQuestionnaire.brandPersonality === vibe.id;
-                  return (
+              {/* Loading shimmer state */}
+              {isLoadingThemeOptions && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[0,1,2,3,4,5].map(i => (
+                    <div key={i} className="rounded-xl border-2 border-surface-border overflow-hidden animate-pulse">
+                      <div className="w-full bg-surface" style={{ aspectRatio: '16 / 9' }} />
+                      <div className="p-3 space-y-2">
+                        <div className="h-3 bg-surface rounded w-2/3" />
+                        <div className="h-2 bg-surface rounded w-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Theme options grid — 2x3 with rich slide previews */}
+              {!isLoadingThemeOptions && themes.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {themes.map((theme, idx) => {
+                    const isSelected = selectedThemeIndex === idx;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedThemeIndex(idx)}
+                        className={`rounded-xl border-2 text-left transition-all overflow-hidden ${
+                          isSelected
+                            ? 'border-accent ring-2 ring-accent/30 scale-[1.02]'
+                            : 'border-surface-border hover:border-accent/30 hover:scale-[1.01]'
+                        }`}
+                      >
+                        {/* Rich slide thumbnail */}
+                        <div
+                          className="relative w-full overflow-hidden"
+                          style={{
+                            aspectRatio: '16 / 9',
+                            background: theme.backgroundColor,
+                          }}
+                        >
+                          {/* Accent sidebar */}
+                          <div className="absolute left-0 top-0 bottom-0" style={{ width: '5%', background: theme.primaryColor }} />
+
+                          {/* Heading text */}
+                          <div className="absolute" style={{ top: '16%', left: '12%', right: '10%' }}>
+                            <div style={{ width: '65%', height: 'clamp(5px, 1.4vw, 8px)', background: theme.textColor, borderRadius: 2, opacity: 0.9 }} />
+                            {/* Accent underline */}
+                            <div style={{ width: '35%', height: 'clamp(2px, 0.6vw, 3px)', background: theme.primaryColor, borderRadius: 2, marginTop: 'clamp(3px, 0.6vw, 5px)' }} />
+                          </div>
+
+                          {/* Bullet content lines */}
+                          <div className="absolute" style={{ top: '48%', left: '12%', right: '10%' }}>
+                            {[0.88, 0.72, 0.6].map((w, i) => (
+                              <div key={i} className="flex items-center gap-1" style={{ marginBottom: 'clamp(3px, 0.6vw, 5px)' }}>
+                                {/* Bullet dot */}
+                                <div style={{ width: 'clamp(2px, 0.4vw, 3px)', height: 'clamp(2px, 0.4vw, 3px)', borderRadius: '50%', background: theme.primaryColor, flexShrink: 0 }} />
+                                {/* Line */}
+                                <div style={{
+                                  width: `${w * 100}%`, height: 'clamp(2px, 0.5vw, 3px)',
+                                  background: theme.mutedTextColor, borderRadius: 1, opacity: 0.4,
+                                }} />
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Layout-specific geometric accent */}
+                          {renderLayoutAccent(theme)}
+
+                          {/* Selected check */}
+                          {isSelected && (
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-sm">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        {/* Label */}
+                        <div className="p-2.5">
+                          <span className={`font-semibold text-sm block leading-tight ${
+                            isSelected ? 'text-accent' : 'text-text-primary'
+                          }`}>{theme.name}</span>
+                          <p className="text-xs text-text-muted mt-0.5 leading-snug line-clamp-2">{theme.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Font picker — loads when a theme is selected */}
+              {selectedThemeIndex !== null && (
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-2">
+                    Heading font
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Keep original option */}
                     <button
-                      key={vibe.id}
-                      onClick={() => setThemeQuestionnaire(q => ({
-                        ...q,
-                        brandPersonality: vibe.id,
-                      }))}
-                      className={`rounded-xl border-2 text-left transition-all overflow-hidden ${
-                        isSelected
-                          ? 'border-accent ring-1 ring-accent/30'
+                      onClick={() => setSelectedFontIndex(null)}
+                      className={`flex-1 min-w-[100px] py-3 px-3 rounded-xl border-2 text-center transition-all ${
+                        selectedFontIndex === null
+                          ? 'border-accent ring-2 ring-accent/30 bg-accent/5'
                           : 'border-surface-border hover:border-accent/30'
                       }`}
                     >
-                      {/* Mini slide thumbnail */}
-                      <div
-                        className="relative w-full"
-                        style={{
-                          aspectRatio: '16 / 9',
-                          background: vibe.bg,
-                        }}
+                      <span className="text-xs text-text-muted block mb-0.5">Keep original</span>
+                      <span className="text-sm font-semibold text-text-primary" style={{ fontFamily: themes[selectedThemeIndex]?.fontSuggestion || 'system-ui' }}>
+                        {themes[selectedThemeIndex]?.fontSuggestion || 'Default'}
+                      </span>
+                    </button>
+                    {FONT_OPTIONS.map((font, idx) => (
+                      <button
+                        key={font.name}
+                        onClick={() => setSelectedFontIndex(idx)}
+                        className={`flex-1 min-w-[100px] py-3 px-3 rounded-xl border-2 text-center transition-all ${
+                          selectedFontIndex === idx
+                            ? 'border-accent ring-2 ring-accent/30 bg-accent/5'
+                            : 'border-surface-border hover:border-accent/30'
+                        }`}
                       >
-                        {/* Accent sidebar */}
-                        <div className="absolute left-0 top-0 bottom-0" style={{ width: '6%', background: vibe.accent }} />
-                        {/* Title bar */}
-                        <div className="absolute" style={{ top: '18%', left: '14%', right: '10%' }}>
-                          <div style={{ width: '70%', height: 'clamp(4px, 1.2vw, 7px)', background: vibe.text, borderRadius: 2, opacity: 0.85 }} />
-                          <div style={{ width: '40%', height: 'clamp(3px, 0.8vw, 5px)', background: vibe.accent, borderRadius: 2, marginTop: 'clamp(3px, 0.6vw, 5px)', opacity: 0.7 }} />
-                        </div>
-                        {/* Bullet lines */}
-                        <div className="absolute" style={{ top: '50%', left: '14%', right: '10%' }}>
-                          {[0.9, 0.75, 0.6].map((w, i) => (
-                            <div key={i} style={{
-                              width: `${w * 100}%`, height: 'clamp(2px, 0.5vw, 3px)',
-                              background: vibe.text, borderRadius: 1, opacity: 0.3,
-                              marginBottom: 'clamp(3px, 0.5vw, 4px)',
-                            }} />
-                          ))}
-                        </div>
-                        {/* Selected check */}
-                        {isSelected && (
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                            <Check className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      {/* Label */}
-                      <div className="p-3">
-                        <span className={`font-semibold text-sm block ${
-                          isSelected ? 'text-accent' : 'text-text-primary'
-                        }`}>{vibe.label}</span>
-                        <p className="text-xs text-text-muted mt-0.5 leading-snug">{vibe.desc}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Brand color (optional) */}
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-2">
-                  Brand color <span className="font-normal text-text-muted">(optional)</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={themeQuestionnaire.primaryColor || selectedVibe?.accent || '#2563eb'}
-                    onChange={(e) => setThemeQuestionnaire(q => ({ ...q, primaryColor: e.target.value }))}
-                    className="w-10 h-10 rounded-lg border border-surface-border cursor-pointer bg-transparent"
-                  />
-                  <input
-                    type="text"
-                    value={themeQuestionnaire.primaryColor || ''}
-                    onChange={(e) => setThemeQuestionnaire(q => ({ ...q, primaryColor: e.target.value }))}
-                    placeholder={selectedVibe?.accent || '#2563eb'}
-                    className="flex-1 border border-surface-border rounded-xl px-4 py-2.5 bg-card text-text-primary placeholder:text-text-muted text-sm focus:ring-2 focus:ring-accent outline-none"
-                  />
-                  {themeQuestionnaire.primaryColor && (
-                    <button
-                      onClick={() => setThemeQuestionnaire(q => { const { primaryColor, ...rest } = q; return rest; })}
-                      className="text-text-muted hover:text-text-primary transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
+                        <span className="text-xs text-text-muted block mb-0.5">{font.description}</span>
+                        <span className="text-sm font-semibold text-text-primary" style={{ fontFamily: `${font.name}, system-ui, sans-serif` }}>
+                          {font.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Brand color (optional) — only show after themes loaded */}
+              {!isLoadingThemeOptions && themes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-2">
+                    Brand color <span className="font-normal text-text-muted">(optional)</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={themeQuestionnaire.primaryColor || selectedTheme?.primaryColor || '#2563eb'}
+                      onChange={(e) => setThemeQuestionnaire(q => ({ ...q, primaryColor: e.target.value }))}
+                      className="w-10 h-10 rounded-lg border border-surface-border cursor-pointer bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={themeQuestionnaire.primaryColor || ''}
+                      onChange={(e) => setThemeQuestionnaire(q => ({ ...q, primaryColor: e.target.value }))}
+                      placeholder={selectedTheme?.primaryColor || '#2563eb'}
+                      className="flex-1 border border-surface-border rounded-xl px-4 py-2.5 bg-card text-text-primary placeholder:text-text-muted text-sm focus:ring-2 focus:ring-accent outline-none"
+                    />
+                    {themeQuestionnaire.primaryColor && (
+                      <button
+                        onClick={() => setThemeQuestionnaire(q => { const { primaryColor, ...rest } = q; return rest; })}
+                        className="text-text-muted hover:text-text-primary transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Brand logo (optional) */}
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-2">
-                  Logo <span className="font-normal text-text-muted">(optional)</span>
-                </label>
-                {brandLogo ? (
-                  <div className="flex items-center gap-4 p-3 bg-surface rounded-xl border border-surface-border">
-                    <img src={brandLogo} alt="Logo" className="w-12 h-12 object-contain rounded" />
-                    <span className="text-sm text-text-primary flex-1">Logo uploaded</span>
-                    <button
-                      onClick={() => setBrandLogo(null)}
-                      className="text-text-muted hover:text-warning transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-surface-border rounded-xl p-4 text-center hover:bg-surface transition-colors relative">
-                    <input
-                      type="file"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={handleLogoUpload}
-                      accept=".png,.jpg,.jpeg,.svg,.webp"
-                    />
-                    <div className="flex flex-col items-center text-text-muted">
-                      <ImagePlus className="w-6 h-6 mb-1" />
-                      <span className="text-sm">Drop logo or click to upload</span>
-                      <span className="text-xs mt-0.5">PNG, JPG, SVG</span>
+              {!isLoadingThemeOptions && themes.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-2">
+                    Logo <span className="font-normal text-text-muted">(optional)</span>
+                  </label>
+                  {brandLogo ? (
+                    <div className="flex items-center gap-4 p-3 bg-surface rounded-xl border border-surface-border">
+                      <img src={brandLogo} alt="Logo" className="w-12 h-12 object-contain rounded" />
+                      <span className="text-sm text-text-primary flex-1">Logo uploaded</span>
+                      <button
+                        onClick={() => setBrandLogo(null)}
+                        className="text-text-muted hover:text-warning transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-surface-border rounded-xl p-4 text-center hover:bg-surface transition-colors relative">
+                      <input
+                        type="file"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={handleLogoUpload}
+                        accept=".png,.jpg,.jpeg,.svg,.webp"
+                      />
+                      <div className="flex flex-col items-center text-text-muted">
+                        <ImagePlus className="w-6 h-6 mb-1" />
+                        <span className="text-sm">Drop logo or click to upload</span>
+                        <span className="text-xs mt-0.5">PNG, JPG, SVG</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg text-warning text-sm">
@@ -1859,17 +2444,17 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                   <ArrowLeft className="w-4 h-4" /> Back
                 </button>
                 <button
-                  onClick={handleDesignGenerate}
-                  disabled={isGeneratingTheme || !themeQuestionnaire.brandPersonality}
+                  onClick={updateMode === 'full' ? handleFullGenerate : handleDesignGenerateWithAgents}
+                  disabled={isGeneratingTheme || selectedThemeIndex === null || isLoadingThemeOptions}
                   className="flex-1 bg-accent text-white py-4 rounded-xl font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/30"
                 >
                   {isGeneratingTheme ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" /> Generating theme...
+                      <Loader2 className="w-5 h-5 animate-spin" /> Generating...
                     </>
                   ) : (
                     <>
-                      Redesign <Paintbrush className="w-4 h-4" />
+                      {updateMode === 'full' ? 'Full Refresh' : 'Redesign'} <Paintbrush className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -2149,44 +2734,6 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
   // Modernized slide — clean presentation design inspired by professional keynote templates
   // Design principles: flat bg, typography hierarchy, thin 1px borders, metric-style grid cells, no decorative gradients
   const ModernizedSlide = ({ slide }: { slide: typeof result.slides[0] }) => {
-    // Visual/design mode: show recolored slide image
-    // Canvas pixel remapping transforms bg/text colors while preserving images & diagrams
-    if (updateMode === 'visual' && pageImages.length > 0) {
-      const pageNum = slide.before.sourcePageNumber;
-      const recoloredImage = pageNum ? recoloredImages[pageNum] : null;
-      const originalImage = pageNum && pageNum > 0 && pageNum <= pageImages.length
-        ? pageImages[pageNum - 1]
-        : null;
-      const displayImage = recoloredImage || originalImage;
-
-      if (displayImage) {
-        return (
-          <div className="absolute inset-0">
-            {/* Recolored slide image — full bleed, all content preserved */}
-            <img
-              src={displayImage}
-              alt={slide.after.title || 'Modernized slide'}
-              className="w-full h-full object-contain"
-              style={{ background: generatedTheme?.backgroundColor || '#ffffff' }}
-            />
-            {/* Brand logo overlay */}
-            {brandLogo && (
-              <img
-                src={brandLogo}
-                alt="Brand logo"
-                className="absolute pointer-events-none"
-                style={{
-                  bottom: '4%', right: '3%',
-                  width: '8%', height: 'auto',
-                  objectFit: 'contain', opacity: 0.85,
-                }}
-              />
-            )}
-          </div>
-        );
-      }
-    }
-
     // Use generated theme colors when available (visual mode), otherwise use style palettes
     const useTheme = generatedTheme && updateMode === 'visual';
     const p = useTheme
@@ -2628,7 +3175,7 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
     );
   };
 
-  if (step === 6 && result) {
+  if (step === 6) {
     const resetAll = () => {
       setResult(null);
       setStep(1);
@@ -2652,171 +3199,289 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
       setFindingsReviewComplete(false);
       setExtractedPages([]);
       setGeneratedTheme(null);
-      setRecoloredImages({});
       setBrandLogo(null);
       setThemeQuestionnaire({});
       setIsGeneratingTheme(false);
+      setSelectedFontIndex(null);
+      // Agent orchestration cleanup
+      setAgentPhase('idle');
+      setAgents([]);
+      setVerificationResults([]);
+      setQuizResults([]);
+      setCourseSummaryResult(null);
+      setShowResults(false);
+      setPreGeneratedStudyGuide([]);
+      setPreGeneratedQuiz([]);
+      setPreGeneratedSlides([]);
+      setSlideVerification(null);
+      setSlideDisclaimer(undefined);
+      Object.values(agentProgressIntervals.current).forEach(clearInterval);
+      agentProgressIntervals.current = {};
     };
 
-    return (
-      <div className="min-h-screen bg-background text-text-primary overflow-y-auto">
-        {/* Atmospheric top gradient */}
-        <div className="fixed top-0 left-0 right-0 h-64 pointer-events-none" style={{
-          background: `radial-gradient(ellipse 80% 50% at 50% -10%, ${result.slides[0]?.visualStyle.accentColor || '#c8956c'}15, transparent)`,
-        }} />
+    // Phase 1: Agent Orchestration Panel (show while agents are working or just completed)
+    if (!showResults && agentPhase !== 'idle') {
+      const allDone = agents.length > 0 && agents.every(a => a.status === 'complete' || a.status === 'error');
+      const completedCount = agents.filter(a => a.status === 'complete').length;
+      const hasEnoughResults = result !== null || completedCount >= 2;
 
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-10">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-16">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent mb-3">
-                {updateMode === 'visual' ? 'Slide Modernization' : 'Course Transformation'}
-              </p>
-              <h2 className="text-4xl md:text-5xl font-heading font-bold text-text-primary leading-tight mb-3">
-                {result.slides.length} slides redesigned
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+          <div className="w-full max-w-2xl bg-card p-8 rounded-3xl shadow-xl border border-surface-border">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-text-primary mb-2">
+                {allDone ? 'Analysis Complete' : 'AI Agents at Work'}
               </h2>
               <p className="text-text-muted text-sm">
-                {result.metadata.sector} &middot; {result.metadata.location} &middot; {
-                  result.metadata.updateMode === 'regulatory' ? 'Regulatory Update' :
-                  result.metadata.updateMode === 'visual' ? 'Visual Refresh' : 'Full Modernization'
-                }
+                {allDone
+                  ? `${completedCount} of ${agents.length} agents finished successfully`
+                  : `${agents.length} specialized agents are ${updateMode === 'visual' ? 'building your course materials' : 'analyzing your course'} in parallel`}
               </p>
-              {updateMode !== 'visual' && result.metadata.searchQueries.length > 0 && (
-                <p className="text-text-muted text-xs mt-2 flex items-center gap-1">
-                  <Search className="w-3 h-3" />
-                  Verified via: {result.metadata.searchQueries.slice(0, 2).join(', ')}
-                </p>
-              )}
-              {updateMode === 'visual' && generatedTheme && (
-                <div className="flex items-center gap-3 mt-3">
-                  <div className="flex gap-1">
-                    <div className="w-4 h-4 rounded-full" style={{ background: generatedTheme.primaryColor }} />
-                    <div className="w-4 h-4 rounded-full" style={{ background: generatedTheme.secondaryColor }} />
-                  </div>
-                  <p className="text-text-muted text-xs">
-                    {generatedTheme.fontSuggestion} &middot; {generatedTheme.designReasoning}
-                  </p>
-                </div>
-              )}
             </div>
-            <button
-              onClick={resetAll}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-text-muted transition-colors"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> {updateMode === 'visual' ? 'New design' : 'New analysis'}
-            </button>
-          </div>
 
-          {/* Slides */}
-          <div className="space-y-20">
-            {result.slides.map((slide, idx) => (
-              <div key={slide.id} className="relative">
-                {/* Slide number */}
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold" style={{
-                    background: `${slide.visualStyle.accentColor}20`,
-                    color: slide.visualStyle.accentColor,
-                  }}>
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1 h-px" style={{ background: `${slide.visualStyle.accentColor}15` }} />
-                </div>
+            {/* Agent Grid — 2x2 for 4 agents, last spans 2 cols for 3 agents */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              {agents.map((agent, agentIdx) => {
+                const isWorking = agent.status === 'working';
+                const isComplete = agent.status === 'complete';
+                const isError = agent.status === 'error';
+                const isIdle = agent.status === 'idle';
 
-                {/* Before/After pair — equal-width side-by-side 16:9 slides */}
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-center">
-                  {/* Before — 16:9 original slide thumbnail */}
-                  <SlideFrame label="Original">
-                    <OriginalSlide slide={slide} slideIndex={idx} />
-                  </SlideFrame>
+                const isLastOdd = agents.length % 2 === 1 && agentIdx === agents.length - 1;
 
-                  {/* Transform arrow */}
-                  <div className="hidden md:flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{
-                      background: `${slide.visualStyle.accentColor}15`,
-                      border: `1px solid ${slide.visualStyle.accentColor}25`,
-                    }}>
-                      <ArrowRight className="w-4 h-4" style={{ color: slide.visualStyle.accentColor }} />
-                    </div>
-                  </div>
-                  <div className="flex md:hidden items-center justify-center py-2">
-                    <ArrowRight className="w-5 h-5 rotate-90 text-text-muted opacity-30" />
-                  </div>
-
-                  {/* After — 16:9 modernized slide */}
-                  <SlideFrame label="Modernized" labelColor={slide.visualStyle.accentColor}>
-                    <ModernizedSlide slide={slide} />
-                  </SlideFrame>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Citations — hidden for visual-only mode (no content changes = no sources) */}
-          {result.citations.length > 0 && updateMode !== 'visual' && (
-            <div className="mt-20 pt-10" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-text-muted mb-6 flex items-center gap-2">
-                <ExternalLink className="w-3 h-3" /> Verified Sources
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {result.citations.map((citation) => (
-                  <a
-                    key={citation.id}
-                    href={citation.url !== '#' && citation.url.startsWith('https://') ? citation.url : undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-start gap-3 p-4 rounded-xl transition-all"
-                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}
+                return (
+                  <div
+                    key={agent.id}
+                    className={`relative rounded-2xl border-2 p-5 transition-all duration-500${isLastOdd ? ' col-span-2' : ''}`}
+                    style={{
+                      borderColor: isWorking
+                        ? agent.color
+                        : isComplete
+                          ? `${agent.color}80`
+                          : isError
+                            ? '#c27056'
+                            : 'rgba(255,248,230,0.08)',
+                      backgroundColor: isWorking
+                        ? `${agent.color}08`
+                        : isComplete
+                          ? `${agent.color}05`
+                          : 'rgba(26,25,20,0.8)',
+                      backdropFilter: 'blur(8px)',
+                      boxShadow: isWorking
+                        ? `0 0 20px ${agent.color}15, 0 0 40px ${agent.color}08`
+                        : 'none',
+                      animation: isWorking ? 'pulse 2s ease-in-out infinite' : 'none',
+                    }}
                   >
-                    <span className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 bg-accent text-white">
-                      {citation.id}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary group-hover:text-accent transition-colors truncate">
-                        {citation.title}
-                      </p>
-                      {citation.snippet && (
-                        <p className="text-text-muted text-xs mt-1 line-clamp-1">{citation.snippet}</p>
+                    {/* Agent Icon + Name */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300"
+                        style={{
+                          backgroundColor: isComplete || isWorking
+                            ? `${agent.color}20`
+                            : 'rgba(255,248,230,0.04)',
+                          color: isComplete || isWorking
+                            ? agent.color
+                            : 'rgba(245,240,224,0.3)',
+                        }}
+                      >
+                        {agentIconMap[agent.icon] || <FileText className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary">{agent.name}</p>
+                        {/* Status badge */}
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider"
+                          style={{
+                            color: isComplete
+                              ? '#6abf8a'
+                              : isWorking
+                                ? agent.color
+                                : isError
+                                  ? '#c27056'
+                                  : 'rgba(245,240,224,0.3)',
+                          }}
+                        >
+                          {isComplete ? 'Done' : isWorking ? 'Working' : isError ? 'Error' : 'Queued'}
+                        </span>
+                      </div>
+                      {/* Status icon */}
+                      {isComplete && (
+                        <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: '#6abf8a' }} />
+                      )}
+                      {isWorking && (
+                        <Loader2 className="w-5 h-5 animate-spin shrink-0" style={{ color: agent.color }} />
+                      )}
+                      {isError && (
+                        <AlertOctagon className="w-5 h-5 shrink-0" style={{ color: '#c27056' }} />
                       )}
                     </div>
-                    {citation.url !== '#' && citation.url.startsWith('https://') && (
-                      <ExternalLink className="w-3 h-3 text-text-muted group-hover:text-accent shrink-0 mt-1" />
-                    )}
-                  </a>
+
+                    {/* Progress text / result preview */}
+                    <div className="min-h-[24px]">
+                      {isWorking && (
+                        <p
+                          className="text-xs text-text-muted transition-opacity duration-500"
+                          style={{ opacity: 0.8 }}
+                        >
+                          {agent.progress}
+                        </p>
+                      )}
+                      {isComplete && agent.result && (
+                        <p className="text-xs font-medium" style={{ color: agent.color }}>
+                          {agent.result}
+                        </p>
+                      )}
+                      {isError && (
+                        <p className="text-xs text-warning truncate">{agent.error || 'An error occurred'}</p>
+                      )}
+                      {isIdle && (
+                        <p className="text-xs text-text-muted" style={{ opacity: 0.4 }}>
+                          Waiting to start...
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* View Results button — appears when agents are done */}
+            {(allDone || (agentPhase === 'complete')) && (
+              <button
+                onClick={() => setShowResults(true)}
+                disabled={!hasEnoughResults}
+                className="w-full bg-accent text-background py-4 rounded-xl font-bold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20"
+              >
+                View Results <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Start Over link */}
+            {allDone && (
+              <button
+                onClick={resetAll}
+                className="w-full mt-3 text-sm text-text-muted hover:text-text-primary transition-colors"
+              >
+                Start over
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Phase 2: Show results (existing logic, enhanced with new data)
+    if (result) {
+      // Full mode → tabbed view with both regulatory and design outputs
+      if (updateMode === 'full') {
+        return (
+          <div className="min-h-screen bg-background">
+            {/* Tab switcher */}
+            <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-surface-border">
+              <div className="max-w-5xl mx-auto px-6 flex gap-1 pt-3 pb-0">
+                {([
+                  { id: 'regulatory' as const, label: 'Regulatory Updates', icon: <ShieldCheck className="w-4 h-4" /> },
+                  { id: 'design' as const, label: 'Design Materials', icon: <Palette className="w-4 h-4" /> },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setFullModeTab(tab.id)}
+                    className="flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-all rounded-t-lg"
+                    style={{
+                      color: fullModeTab === tab.id ? '#c8956c' : 'rgba(245,240,224,0.5)',
+                      borderBottom: fullModeTab === tab.id ? '2px solid #c8956c' : '2px solid transparent',
+                      background: fullModeTab === tab.id ? 'rgba(200,149,108,0.05)' : 'transparent',
+                    }}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* CTA */}
-          <div className="mt-20 mb-12 text-center">
-            <div className="inline-block px-12 py-10 rounded-2xl relative overflow-hidden" style={{
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <div className="absolute inset-0 pointer-events-none" style={{
-                background: 'radial-gradient(ellipse at center, rgba(200,149,108,0.06), transparent 70%)',
-              }} />
-              <div className="relative">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent mb-3">Full Platform</p>
-                <h3 className="text-2xl font-heading font-bold text-text-primary mb-2">
-                  Ready for the complete transformation?
-                </h3>
-                <p className="text-text-muted text-sm mb-6 max-w-md mx-auto">
-                  Analyze entire libraries. Generate quizzes. Export to SCORM/xAPI.
-                </p>
-                <button className="px-8 py-3 rounded-full font-bold text-sm text-white transition-all transform hover:scale-105" style={{
-                  background: 'linear-gradient(135deg, #c8956c, #a87550)',
-                  boxShadow: '0 8px 30px rgba(200,149,108,0.25)',
-                }}>
-                  Unlock Full Access
-                </button>
-              </div>
-            </div>
+            {/* Tab content */}
+            {fullModeTab === 'regulatory' ? (
+              <RegulatoryOutput
+                result={result}
+                findings={findings}
+                approvedFindingIds={approvedFindingIds}
+                pageImages={pageImages}
+                extractedPages={extractedPages}
+                selectedSector={selectedSector}
+                location={location}
+                topic={topic}
+                updateMode={updateMode}
+                onReset={resetAll}
+                verificationResults={verificationResults}
+                quizResults={quizResults}
+                courseSummaryResult={courseSummaryResult}
+              />
+            ) : (
+              <VisualOutput
+                result={result}
+                pageImages={pageImages}
+                extractedPages={extractedPages}
+                generatedTheme={generatedTheme}
+                selectedSector={selectedSector}
+                location={location}
+                topic={topic}
+                files={files}
+                onReset={resetAll}
+                preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
+                preGeneratedQuiz={preGeneratedQuiz.length > 0 ? preGeneratedQuiz : undefined}
+                preGeneratedSlides={preGeneratedSlides.length > 0 ? preGeneratedSlides : undefined}
+                slideVerification={slideVerification}
+                disclaimer={slideDisclaimer}
+              />
+            )}
           </div>
-        </div>
-      </div>
-    );
+        );
+      }
+
+      // Regulatory mode → redline view with deliverable previews
+      if (updateMode === 'regulatory') {
+        return (
+          <RegulatoryOutput
+            result={result}
+            findings={findings}
+            approvedFindingIds={approvedFindingIds}
+            pageImages={pageImages}
+            extractedPages={extractedPages}
+            selectedSector={selectedSector}
+            location={location}
+            topic={topic}
+            updateMode={updateMode}
+            onReset={resetAll}
+            verificationResults={verificationResults}
+            quizResults={quizResults}
+            courseSummaryResult={courseSummaryResult}
+          />
+        );
+      }
+
+      // Visual mode → new materials output (document, study guide, slides, quiz)
+      return (
+        <VisualOutput
+          result={result}
+          pageImages={pageImages}
+          extractedPages={extractedPages}
+          generatedTheme={generatedTheme}
+          selectedSector={selectedSector}
+          location={location}
+          topic={topic}
+          files={files}
+          onReset={resetAll}
+          preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
+          preGeneratedQuiz={preGeneratedQuiz.length > 0 ? preGeneratedQuiz : undefined}
+          preGeneratedSlides={preGeneratedSlides.length > 0 ? preGeneratedSlides : undefined}
+          slideVerification={slideVerification}
+          disclaimer={slideDisclaimer}
+        />
+      );
+    }
   }
 
   // Fallback / Loading

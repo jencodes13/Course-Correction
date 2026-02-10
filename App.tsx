@@ -8,13 +8,15 @@ import VisualView from './components/VisualView';
 import LandingPage from './components/LandingPage';
 import LiveAssistant from './components/LiveAssistant';
 import DemoFlow from './components/DemoFlow';
+import ArchitecturePage from './components/ArchitecturePage';
 import ExportView from './components/ExportView';
 import CourseDashboard from './components/CourseDashboard';
 import UsageWidget from './components/UsageWidget';
 import UsageDashboard from './components/UsageDashboard';
 import { AppStep } from './types';
 import { analyzeCourseContent } from './services/geminiService';
-import { ChevronRight, Home } from 'lucide-react';
+import { ChevronRight, Home, Sun, Moon, Lightbulb } from 'lucide-react';
+import { useTheme } from './contexts/ThemeContext';
 import { WorkflowProvider, useWorkflow } from './contexts/WorkflowContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import AuthGate from './components/AuthGate';
@@ -42,6 +44,7 @@ const AppInner: React.FC = () => {
     resetProject,
     user,
   } = useWorkflow();
+  const { theme, toggleTheme } = useTheme();
 
   // OAuth redirect: if user is logged in and on LANDING, redirect to DASHBOARD
   const hasRedirected = useRef(false);
@@ -87,6 +90,8 @@ const AppInner: React.FC = () => {
         return <VisualView />;
       case AppStep.EXPORT:
         return <ExportView />;
+      case AppStep.ARCHITECTURE:
+        return <ArchitecturePage onBack={() => goToStep(AppStep.LANDING)} />;
       default:
         return <div>Unknown Step</div>;
     }
@@ -108,6 +113,14 @@ const AppInner: React.FC = () => {
     return (
       <>
         <LandingPage onStart={() => goToStep(AppStep.DEMO)} onSignIn={() => goToStep(AppStep.DASHBOARD)} />
+        {/* Floating "How It Works" button */}
+        <button
+          onClick={() => goToStep(AppStep.ARCHITECTURE)}
+          className="fixed bottom-8 left-8 z-[1000] flex items-center gap-2 px-5 py-3 rounded-full bg-card/90 backdrop-blur-xl border border-surface-border/60 shadow-lg text-text-muted hover:text-accent hover:border-accent/30 transition-all duration-200 font-heading font-medium text-sm"
+        >
+          <Lightbulb className="w-4 h-4" />
+          How It Works
+        </button>
         <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
         {isUsageDashboardOpen && (
           <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
@@ -116,10 +129,38 @@ const AppInner: React.FC = () => {
     );
   }
 
-  // If on Demo Flow, show full screen demo (no sidebar)
+  // If on Architecture page, show full screen (no sidebar)
+  if (currentStep === AppStep.ARCHITECTURE) {
+    return (
+      <>
+        <ArchitecturePage onBack={() => goToStep(AppStep.LANDING)} />
+        <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
+        {isUsageDashboardOpen && (
+          <UsageDashboard onClose={() => setIsUsageDashboardOpen(false)} />
+        )}
+      </>
+    );
+  }
+
+  // If on Demo Flow, show full screen demo (no sidebar) but keep logo nav
   if (currentStep === AppStep.DEMO) {
       return (
         <>
+          {/* Floating logo nav */}
+          <div className="fixed top-5 left-8 z-50 flex items-center gap-3 px-4 py-2.5 rounded-full bg-card/80 backdrop-blur-xl border border-surface-border/60 shadow-lg">
+            <button onClick={() => goToStep(AppStep.LANDING)} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <img src="/public/logo-cropped.png" alt="Course Correction" width={30} height={30} style={{ objectFit: 'contain' }} />
+              <span className="text-sm font-bold text-text-primary tracking-tight">Course Correction</span>
+            </button>
+            <div className="w-px h-4 bg-surface-border/60" />
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-full text-text-muted hover:text-text-primary hover:bg-surface transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+            </button>
+          </div>
           {renderContent()}
           <UsageWidget onClick={() => setIsUsageDashboardOpen(true)} />
           {isUsageDashboardOpen && (

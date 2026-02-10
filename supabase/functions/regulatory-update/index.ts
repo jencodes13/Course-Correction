@@ -75,6 +75,7 @@ ${body.content}`;
         systemInstruction: systemPrompt,
         responseSchema: REGULATORY_SCHEMA,
         tools: [{ googleSearch: {} }],
+        maxOutputTokens: 8192,
       }
     );
 
