@@ -29,12 +29,13 @@ if (bypassKey) {
   bypassHeaders['x-bypass-key'] = bypassKey;
 }
 
-// Gemini Client — only used as fallback in development when Edge Functions fail
+// Gemini Client — only used as fallback in development when Edge Functions fail.
+// In production builds, the key is never bundled; all calls go through Edge Functions.
+const directApiKey = import.meta.env.DEV ? String(import.meta.env.VITE_GEMINI_API_KEY || '') : '';
 let ai: GoogleGenAI;
 try {
-  ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'placeholder' });
+  ai = new GoogleGenAI({ apiKey: directApiKey || 'placeholder' });
 } catch {
-  // If initialization fails, create with placeholder — Edge Functions are the primary path
   ai = new GoogleGenAI({ apiKey: 'placeholder' });
 }
 

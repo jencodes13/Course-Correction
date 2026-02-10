@@ -35,7 +35,14 @@ const LiveAssistant: React.FC<LiveAssistantProps> = ({ onClose }) => {
         streamRef.current = stream;
 
         setStatus("Connecting to Gemini...");
-        const ai = new GoogleGenAI({ apiKey: (import.meta.env.DEV && import.meta.env.VITE_GEMINI_API_KEY) || '' });
+        // Live Audio API requires a direct client-side key (WebSocket, not HTTP).
+        // Only available in local dev — production builds tree-shake this to ''.
+        const apiKey = import.meta.env.DEV ? String(import.meta.env.VITE_GEMINI_API_KEY || '') : '';
+        if (!apiKey) {
+          setStatus("Voice assistant requires VITE_GEMINI_API_KEY in .env.local");
+          return;
+        }
+        const ai = new GoogleGenAI({ apiKey });
         
         // 1. Setup Audio Input
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
