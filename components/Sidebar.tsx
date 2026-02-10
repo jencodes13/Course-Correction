@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Zap, Paintbrush, UploadCloud, Settings, LogOut, Sliders, Mic, FolderOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Zap, Paintbrush, UploadCloud, Settings, LogOut, Sliders, Mic, FolderOpen, Brain } from 'lucide-react';
 import { AppStep } from '../types';
 import { useWorkflow } from '../contexts/WorkflowContext';
 import { signOut } from '../services/supabaseClient';
@@ -21,9 +21,7 @@ const Sidebar: React.FC = () => {
     { id: AppStep.DASHBOARD, label: 'My Courses', icon: FolderOpen },
     { id: AppStep.INGESTION, label: 'Project Files', icon: UploadCloud },
     { id: AppStep.CONFIGURATION, label: 'Configuration', icon: Sliders },
-    { id: AppStep.DIAGNOSIS, label: 'Diagnosis', icon: LayoutDashboard },
-    { id: AppStep.REGULATORY, label: 'Information Refresh', icon: FileText },
-    { id: AppStep.VISUAL, label: 'Visual Update', icon: Paintbrush },
+    { id: AppStep.AGENT_FLOW, label: 'AI Analysis', icon: Brain },
     { id: AppStep.EXPORT, label: 'Export Package', icon: Zap },
   ];
 

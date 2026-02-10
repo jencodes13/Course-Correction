@@ -8,13 +8,13 @@ import {
   BrainCircuit,
   BookOpen,
   Search,
-  ChevronDown,
-  ChevronUp,
   ArrowRight,
   Sparkles,
   Bot,
   Sun,
   Moon,
+  GraduationCap,
+  Presentation,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -22,7 +22,7 @@ interface ArchitecturePageProps {
   onBack: () => void;
 }
 
-// Agent definitions
+// Agent definitions — matches FULL_AGENTS in DemoFlow.tsx
 const agents = [
   {
     name: 'Fact Checker',
@@ -42,11 +42,11 @@ const agents = [
   },
   {
     name: 'Slide Designer',
-    color: '#c8956c',
+    color: '#ef4444',
     icon: Palette,
     model: 'gemini-3-flash-preview',
     grounding: 'None (two-pass)',
-    description: 'Transforms dense text into modern, scannable slide layouts using a generate-then-review pipeline.',
+    description: 'Redesigns outdated slides into modern, scannable layouts using a generate-then-review pipeline with before/after comparisons.',
     capabilities: [
       'Two-pass: generate + self-review',
       'Layout selection (hero, split, stats)',
@@ -57,12 +57,44 @@ const agents = [
     sampleOutput: 'Split layout: icon checklist left, hero image prompt right. 6 scannable bullets.',
   },
   {
-    name: 'Quiz Builder',
+    name: 'Study Guide Agent',
+    color: '#10b981',
+    icon: GraduationCap,
+    model: 'gemini-3-flash-preview',
+    grounding: 'Google Search',
+    description: 'Extracts key concepts and creates structured study guides with search-grounded fact-checking for each section.',
+    capabilities: [
+      'Key concept extraction',
+      'Structured section organization',
+      'Search Grounding verification',
+      'Learning objective alignment',
+    ],
+    sampleInput: 'Module on bloodborne pathogen exposure control',
+    sampleOutput: '8 study sections covering exposure routes, PPE requirements, post-exposure protocols, and OSHA compliance.',
+  },
+  {
+    name: 'Slide Deck Agent',
+    color: '#c8956c',
+    icon: Presentation,
+    model: 'gemini-3-flash-preview',
+    grounding: 'None',
+    description: 'Generates complete themed presentation decks with data-verified content and AI-generated infographics.',
+    capabilities: [
+      'Theme-aware slide generation',
+      'Data coverage verification',
+      'AI infographic creation',
+      'Content-to-visual transformation',
+    ],
+    sampleInput: 'Construction safety course with 12 modules',
+    sampleOutput: '24-slide deck with hero, stats, checklist layouts. Infographic generated for fall protection data.',
+  },
+  {
+    name: 'Quiz Agent',
     color: '#8b5cf6',
     icon: BrainCircuit,
     model: 'gemini-3-flash-preview',
     grounding: 'None',
-    description: 'Generates certification-style assessment questions directly from course material.',
+    description: 'Generates certification-style assessment questions from course material and study guide sections.',
     capabilities: [
       'Multiple choice + scenario-based',
       'Distractor analysis',
@@ -74,7 +106,7 @@ const agents = [
   },
   {
     name: 'Course Summary',
-    color: '#10b981',
+    color: '#06b6d4',
     icon: BookOpen,
     model: 'gemini-3-pro-preview',
     grounding: 'None',
@@ -129,14 +161,13 @@ const AnimatedSection: React.FC<{ children: React.ReactNode; className?: string;
 
 
 const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
-  const [activeAgent, setActiveAgent] = useState<number | null>(null);
   const [flowStep, setFlowStep] = useState(0);
   const { theme, toggleTheme } = useTheme();
 
   // Animate the flow diagram
   useEffect(() => {
     const timer = setInterval(() => {
-      setFlowStep((prev) => (prev + 1) % 7);
+      setFlowStep((prev) => (prev + 1) % 9);
     }, 2000);
     return () => clearInterval(timer);
   }, []);
@@ -188,7 +219,7 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
               background: 'linear-gradient(135deg, #FF6B5B 0%, #4A3AFF 50%, #00C9A7 100%)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             }}>
-              CourseCorrect
+              Course Correction
             </span>{' '}
             Works
           </h1>
@@ -196,20 +227,20 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             color: 'rgba(245,240,224,0.6)', fontSize: 18, lineHeight: 1.7,
             maxWidth: 680, margin: '0 auto',
           }}>
-            Four specialized AI agents work in parallel to analyze, verify, redesign, and assess your courses -- powered by Google Gemini 3.
+            Six specialized AI agents work in parallel to analyze, verify, redesign, and assess your courses -- powered by Google Gemini 3.
           </p>
         </div>
       </section>
 
       {/* ═══ PIPELINE ═══ */}
-      <section style={{ padding: '0 24px 100px', maxWidth: 900, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      <section style={{ padding: '0 24px 100px', maxWidth: 1100, margin: '0 auto', position: 'relative', zIndex: 1 }}>
         <AnimatedSection>
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em', color: '#c8956c', marginBottom: 12 }}>
               The Pipeline
             </p>
             <h2 style={{ fontFamily: 'Poppins, sans-serif', fontSize: 36, fontWeight: 800, marginBottom: 12, letterSpacing: '-0.01em' }}>
-              Upload once. Four agents{' '}
+              Upload once. Six agents{' '}
               <span style={{ background: 'linear-gradient(135deg, #FF6B5B, #4A3AFF, #00C9A7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                 in parallel.
               </span>
@@ -225,8 +256,8 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0, marginBottom: 32 }}>
               <PipelineNode
                 icon={FileText}
-                label="Upload"
-                sublabel="PDF, PPT, DOC"
+                label="Analyze"
+                sublabel="Drop in your materials"
                 color="#c8956c"
                 active={flowStep === 0}
                 passed={flowStep > 0}
@@ -260,9 +291,9 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             {/* Horizontal spread line */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <div style={{
-                width: '82%', maxWidth: 660, height: 2,
+                width: '88%', maxWidth: 960, height: 2,
                 background: flowStep >= 2
-                  ? 'linear-gradient(90deg, #3b82f6, #c8956c 35%, #8b5cf6 65%, #10b981)'
+                  ? 'linear-gradient(90deg, #3b82f6, #ef4444 20%, #10b981 40%, #c8956c 60%, #8b5cf6 80%, #06b6d4)'
                   : 'rgba(255,248,230,0.1)',
                 transition: 'background 0.5s',
                 borderRadius: 1,
@@ -271,7 +302,7 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             </div>
 
             {/* Vertical drops to agents */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, maxWidth: 740, margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, maxWidth: 1000, margin: '0 auto' }}>
               {agents.map((agent, i) => (
                 <div key={agent.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{
@@ -296,18 +327,18 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             </div>
 
             {/* Converge lines from agents */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, maxWidth: 740, margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, maxWidth: 1000, margin: '0 auto' }}>
               {agents.map((agent, i) => (
                 <div key={agent.name + '-line-bottom'} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{
                     width: 2, height: 20,
-                    background: flowStep >= 6
+                    background: flowStep >= 8
                       ? agent.color
                       : 'rgba(255,248,230,0.1)',
                     transition: 'background 0.5s',
                     borderRadius: 1,
                     marginTop: 8,
-                    boxShadow: flowStep >= 6 ? `0 0 6px ${agent.color}40` : 'none',
+                    boxShadow: flowStep >= 8 ? `0 0 6px ${agent.color}40` : 'none',
                   }} />
                 </div>
               ))}
@@ -316,25 +347,25 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             {/* Bottom converge line */}
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 0, marginBottom: 8 }}>
               <div style={{
-                width: '82%', maxWidth: 660, height: 2,
-                background: flowStep >= 6
-                  ? 'linear-gradient(90deg, #3b82f6, #c8956c 35%, #8b5cf6 65%, #10b981)'
+                width: '88%', maxWidth: 960, height: 2,
+                background: flowStep >= 8
+                  ? 'linear-gradient(90deg, #3b82f6, #ef4444 20%, #10b981 40%, #c8956c 60%, #8b5cf6 80%, #06b6d4)'
                   : 'rgba(255,248,230,0.1)',
                 transition: 'background 0.5s',
                 borderRadius: 1,
-                boxShadow: flowStep >= 6 ? '0 0 8px rgba(200,149,108,0.2)' : 'none',
+                boxShadow: flowStep >= 8 ? '0 0 8px rgba(200,149,108,0.2)' : 'none',
               }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
               <div style={{
                 width: 2, height: 28,
-                background: flowStep >= 6
+                background: flowStep >= 8
                   ? 'linear-gradient(180deg, rgba(200,149,108,0.5), #c8956c)'
                   : 'rgba(255,248,230,0.12)',
                 transition: 'background 0.5s',
                 borderRadius: 1,
-                boxShadow: flowStep >= 6 ? '0 0 6px rgba(200,149,108,0.3)' : 'none',
+                boxShadow: flowStep >= 8 ? '0 0 6px rgba(200,149,108,0.3)' : 'none',
               }} />
             </div>
 
@@ -342,10 +373,10 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <PipelineNode
                 icon={Sparkles}
-                label="Full Course Module"
-                sublabel="Slides + PDF + Quiz"
+                label="Transform"
+                sublabel="Fresh materials"
                 color="#c8956c"
-                active={flowStep === 6}
+                active={flowStep === 8}
                 passed={false}
                 large
               />
@@ -364,7 +395,7 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
             <h2 style={{ fontFamily: 'Poppins, sans-serif', fontSize: 36, fontWeight: 800, letterSpacing: '-0.01em', marginBottom: 12 }}>
               Meet the{' '}
               <span style={{ background: 'linear-gradient(135deg, #00C9A7, #4A3AFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Agents
+                Team
               </span>
             </h2>
             <p style={{ color: 'rgba(245,240,224,0.5)', maxWidth: 480, margin: '0 auto', fontSize: 15 }}>
@@ -374,22 +405,16 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
         </AnimatedSection>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
-          {agents.map((agent, i) => {
-            const isExpanded = activeAgent === i;
-            return (
+          {agents.map((agent, i) => (
               <AnimatedSection key={agent.name} delay={i * 100}>
                 <div
                   style={{
                     position: 'relative',
                     background: 'rgba(255,248,230,0.04)',
-                    border: `1px solid ${isExpanded ? `${agent.color}40` : 'rgba(255,248,230,0.1)'}`,
+                    border: '1px solid rgba(255,248,230,0.1)',
                     borderRadius: 16, overflow: 'hidden',
-                    transition: 'all 0.3s',
-                    cursor: 'pointer',
-                    boxShadow: isExpanded ? `0 0 40px ${agent.color}08` : 'none',
                     backdropFilter: 'blur(10px)',
                   }}
-                  onClick={() => setActiveAgent(isExpanded ? null : i)}
                 >
                   {/* Accent top bar */}
                   <div style={{ height: 3, background: `linear-gradient(90deg, ${agent.color}, ${agent.color}40)` }} />
@@ -426,19 +451,12 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
                           )}
                         </div>
                       </div>
-                      <div style={{ flexShrink: 0, marginTop: 4 }}>
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5" style={{ color: 'rgba(245,240,224,0.4)' }} />
-                        ) : (
-                          <ChevronDown className="w-5 h-5" style={{ color: 'rgba(245,240,224,0.4)' }} />
-                        )}
-                      </div>
                     </div>
 
                     <p style={{ color: 'rgba(245,240,224,0.6)', fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>{agent.description}</p>
 
                     {/* Capabilities */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {agent.capabilities.map((cap) => (
                         <span key={cap} style={{
                           fontSize: 11, padding: '4px 10px', borderRadius: 8,
@@ -449,46 +467,10 @@ const ArchitecturePage: React.FC<ArchitecturePageProps> = ({ onBack }) => {
                         </span>
                       ))}
                     </div>
-
-                    {/* Expanded: Sample I/O */}
-                    <div style={{
-                      overflow: 'hidden', transition: 'max-height 0.3s ease, opacity 0.3s ease',
-                      maxHeight: isExpanded ? 300 : 0, opacity: isExpanded ? 1 : 0,
-                    }}>
-                      <div style={{ paddingTop: 16, borderTop: '1px solid rgba(255,248,230,0.06)' }}>
-                        <div style={{ display: 'grid', gap: 12 }}>
-                          <div>
-                            <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(245,240,224,0.4)' }}>
-                              Sample Input
-                            </span>
-                            <div style={{
-                              marginTop: 6, padding: 12, borderRadius: 8,
-                              background: 'rgba(255,248,230,0.04)',
-                              fontSize: 12, fontFamily: 'monospace', color: 'rgba(245,240,224,0.6)', lineHeight: 1.5,
-                            }}>
-                              {agent.sampleInput}
-                            </div>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: agent.color }}>
-                              Agent Output
-                            </span>
-                            <div style={{
-                              marginTop: 6, padding: 12, borderRadius: 8,
-                              background: `${agent.color}06`, border: `1px solid ${agent.color}12`,
-                              fontSize: 12, color: '#f5f0e0', lineHeight: 1.5,
-                            }}>
-                              {agent.sampleOutput}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </AnimatedSection>
-            );
-          })}
+            ))}
         </div>
       </section>
 

@@ -8,6 +8,7 @@ import VisualView from './components/VisualView';
 import LandingPage from './components/LandingPage';
 import LiveAssistant from './components/LiveAssistant';
 import DemoFlow from './components/DemoFlow';
+import AgentFlow from './components/AgentFlow';
 import ArchitecturePage from './components/ArchitecturePage';
 import ExportView from './components/ExportView';
 import CourseDashboard from './components/CourseDashboard';
@@ -58,15 +59,10 @@ const AppInner: React.FC = () => {
     }
   }, [user, currentStep, goToStep]);
 
-  // Step 2: User configures goals, then we run analysis
-  const handleConfiguration = async (config: Parameters<typeof analyzeCourseContent>[2] & { goal: string; targetAudience: string; standardsContext: string; location: string }) => {
+  // Step 2: User configures goals, save config and move to AI analysis
+  const handleConfiguration = (config: Parameters<typeof analyzeCourseContent>[2] & { goal: string; targetAudience: string; standardsContext: string; location: string }) => {
     setProjectConfig(config);
-    setIsProcessing(true);
-    // Uses gemini-3-pro-preview for multimodal analysis
-    const result = await analyzeCourseContent(rawContent, files, config);
-    setAnalysis(result);
-    setIsProcessing(false);
-    goToStep(AppStep.DIAGNOSIS);
+    goToStep(AppStep.AGENT_FLOW);
   };
 
   const renderContent = () => {
@@ -81,6 +77,17 @@ const AppInner: React.FC = () => {
       case AppStep.CONFIGURATION:
         return <ConfigurationZone onConfigure={handleConfiguration} isProcessing={isProcessing} />;
 
+      case AppStep.AGENT_FLOW:
+        return (
+          <AgentFlow
+            files={files}
+            topic={projectName}
+            updateMode={(projectConfig?.goal as 'regulatory' | 'visual' | 'full') || 'full'}
+            location={projectConfig?.location || ''}
+            onBack={() => goToStep(AppStep.CONFIGURATION)}
+            onComplete={() => goToStep(AppStep.DASHBOARD)}
+          />
+        );
       case AppStep.DIAGNOSIS:
         return analysis ? (
           <DiagnosisDashboard />
@@ -105,6 +112,7 @@ const AppInner: React.FC = () => {
     if (currentStep === AppStep.DASHBOARD) return 'My Courses';
     if (currentStep === AppStep.INGESTION) return 'New Project';
     if (currentStep === AppStep.CONFIGURATION) return 'Configuration';
+    if (currentStep === AppStep.AGENT_FLOW) return 'AI Analysis';
     if (currentStep === AppStep.DIAGNOSIS) return 'Overview';
     if (currentStep === AppStep.REGULATORY) return 'Regulatory Update';
     if (currentStep === AppStep.VISUAL) return 'Visual Update';
