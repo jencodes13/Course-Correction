@@ -51,7 +51,8 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
 
   const handleAccessCode = (e: React.FormEvent) => {
     e.preventDefault();
-    if (accessCode.trim().toUpperCase() === 'COURSEHACK') {
+    const validCode = import.meta.env.VITE_ACCESS_CODE || '';
+    if (validCode && accessCode.trim().toUpperCase() === validCode.toUpperCase()) {
       localStorage.setItem(ACCESS_STORAGE_KEY, 'true');
       setAccessVerified(true);
       setAccessError('');
