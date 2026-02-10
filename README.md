@@ -65,25 +65,12 @@ All Gemini calls route through Supabase Edge Functions (API key server-side) wit
 ## Getting Started
 
 ```bash
-# Install dependencies
 npm install
-
-# Configure environment
 cp .env.example .env.local
-# Edit .env.local with your Supabase URL and anon key
-
-# Start dev server
 npm run dev
 ```
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Your Supabase anonymous key |
-| `VITE_GOOGLE_CLIENT_ID` | No | Enables Google Sign-In |
-| `VITE_GOOGLE_API_KEY` | No | Enables Google Drive picker |
+You'll need a [Supabase](https://supabase.com) project with Edge Functions deployed and a `GEMINI_API_KEY` set in your Supabase secrets. See `.env.example` for the full list of environment variables.
 
 ## Project Structure
 
