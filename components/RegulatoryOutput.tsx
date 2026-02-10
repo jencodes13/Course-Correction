@@ -43,6 +43,8 @@ interface RegulatoryOutputProps {
   updateMode: UpdateMode;
   onReset: () => void;
   verificationResults?: VerifiedFinding[];
+  externalActiveTab?: string;
+  onExternalTabChange?: (tab: string) => void;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1627,8 +1629,25 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
   updateMode,
   onReset,
   verificationResults,
+  externalActiveTab,
+  onExternalTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<DeliverableTab>('redline');
+  const [internalTab, setInternalTab] = useState<DeliverableTab>(
+    (externalActiveTab as DeliverableTab) || 'redline'
+  );
+
+  // Sync with external tab changes
+  React.useEffect(() => {
+    if (externalActiveTab && ['redline', 'report', 'fact-check'].includes(externalActiveTab)) {
+      setInternalTab(externalActiveTab as DeliverableTab);
+    }
+  }, [externalActiveTab]);
+
+  const activeTab = internalTab;
+  const setActiveTab = (tab: DeliverableTab) => {
+    setInternalTab(tab);
+    onExternalTabChange?.(tab);
+  };
   const tabContentRef = useRef<HTMLDivElement>(null);
 
   const redlineEntries = useMemo(

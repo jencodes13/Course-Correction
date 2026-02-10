@@ -1,11 +1,30 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Zap, Paintbrush, UploadCloud, Settings, LogOut, Sliders, Mic, FolderOpen, Brain } from 'lucide-react';
+import {
+  FileText, Zap, UploadCloud, LogOut, Sliders, Mic, FolderOpen, Brain,
+  FileCheck, ShieldAlert, BookOpen, Presentation, HelpCircle, Palette,
+} from 'lucide-react';
 import { AppStep } from '../types';
 import { useWorkflow } from '../contexts/WorkflowContext';
 import { signOut } from '../services/supabaseClient';
 
+// Result tab definitions keyed by update mode
+const REGULATORY_TABS = [
+  { id: 'redline', label: 'Redline View', icon: FileText },
+  { id: 'report', label: 'Change Report', icon: FileCheck },
+  { id: 'fact-check', label: 'Fact Check', icon: ShieldAlert },
+];
+
+const VISUAL_TABS = [
+  { id: 'slides', label: 'Slide Deck', icon: Presentation },
+  { id: 'study-guide', label: 'Study Guide', icon: BookOpen },
+  { id: 'quiz', label: 'Quiz Module', icon: HelpCircle },
+];
+
 const Sidebar: React.FC = () => {
-  const { currentStep, goToStep, projectName, resetProject, setUser, setIsLiveActive, user } = useWorkflow();
+  const {
+    currentStep, goToStep, projectName, resetProject, setUser, user,
+    agentResultsReady, agentUpdateMode, activeResultTab, setActiveResultTab,
+  } = useWorkflow();
 
   const handleSignOut = async () => {
     try {
@@ -25,28 +44,36 @@ const Sidebar: React.FC = () => {
     { id: AppStep.EXPORT, label: 'Export Package', icon: Zap },
   ];
 
+  // Determine which result tabs to show
+  const showResultTabs = agentResultsReady && currentStep === AppStep.AGENT_FLOW;
+  const regulatoryTabs = (agentUpdateMode === 'regulatory' || agentUpdateMode === 'full') ? REGULATORY_TABS : [];
+  const visualTabs = (agentUpdateMode === 'visual' || agentUpdateMode === 'full') ? VISUAL_TABS : [];
+
   return (
-    <div className="w-64 bg-card text-text-muted flex flex-col h-screen fixed left-0 top-0 border-r border-surface-border flex-shrink-0 z-20">
-      <div className="p-6 border-b border-surface-border">
-        <button onClick={() => goToStep(AppStep.LANDING)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="w-10 h-10 flex items-center justify-center">
-            <img src="/logo-cropped.png" alt="Course Correction" width={36} height={36} style={{ objectFit: 'contain' }} />
+    <div className="fixed left-3 top-3 bottom-3 w-48 rounded-2xl bg-card/90 backdrop-blur-xl border border-surface-border/60 shadow-2xl z-20 flex flex-col overflow-hidden">
+      {/* Logo header */}
+      <div className="px-5 pt-5 pb-4">
+        <button onClick={() => goToStep(AppStep.LANDING)} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img src="/logo-cropped.png" alt="Course Correction" width={28} height={28} style={{ objectFit: 'contain' }} />
           </div>
           <div className="text-left">
-            <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>
-            <span className="text-[10px] uppercase tracking-wider text-accent font-semibold">Beta</span>
+            <span className="text-sm font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>
+            <span className="text-[9px] uppercase tracking-wider text-accent font-semibold">Beta</span>
           </div>
         </button>
       </div>
 
+      {/* Active project badge */}
       {projectName && (
-        <div className="px-6 py-4 bg-surface border-b border-surface-border">
-            <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1">Active Project</p>
-            <p className="text-sm font-medium text-text-primary truncate" title={projectName}>{projectName}</p>
+        <div className="mx-3 mb-3 px-3 py-2.5 bg-surface/60 rounded-xl border border-surface-border/40">
+          <p className="text-[9px] uppercase tracking-wider text-text-muted font-semibold mb-0.5">Active Project</p>
+          <p className="text-xs font-medium text-text-primary truncate" title={projectName}>{projectName}</p>
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+      {/* Main navigation */}
+      <nav className="flex-1 overflow-y-auto px-2.5 space-y-0.5">
         {menuItems.map((item) => {
           const isActive = currentStep === item.id;
           const isDisabled = !projectName && item.id !== AppStep.INGESTION && item.id !== AppStep.DASHBOARD;
@@ -56,43 +83,109 @@ const Sidebar: React.FC = () => {
               key={item.id}
               onClick={() => !isDisabled && goToStep(item.id)}
               disabled={isDisabled}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 group relative ${
                 isActive
                   ? 'bg-accent/10 text-accent'
                   : isDisabled
                     ? 'opacity-40 cursor-not-allowed'
-                    : 'hover:bg-surface hover:text-text-primary'
+                    : 'hover:bg-surface/60 hover:text-text-primary'
               }`}
             >
               {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-accent rounded-r-full" />
               )}
-              <item.icon className={`w-4 h-4 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'}`} />
-              <span className={`text-sm font-medium ${isActive ? 'text-text-primary' : ''}`}>{item.label}</span>
+              <item.icon className={`w-3.5 h-3.5 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'}`} />
+              <span className={`text-[13px] font-medium ${isActive ? 'text-text-primary' : ''}`}>{item.label}</span>
             </button>
           );
         })}
+
+        {/* Result / Deliverable tabs */}
+        {showResultTabs && (regulatoryTabs.length > 0 || visualTabs.length > 0) && (
+          <>
+            <div className="pt-3 pb-1.5 px-3">
+              <div className="h-px bg-surface-border/40 mb-3" />
+              <p className="text-[9px] uppercase tracking-wider text-text-muted font-semibold">Deliverables</p>
+            </div>
+
+            {/* Regulatory section label for full mode */}
+            {agentUpdateMode === 'full' && regulatoryTabs.length > 0 && (
+              <div className="px-3 pt-1 pb-0.5">
+                <p className="text-[9px] uppercase tracking-wider text-text-muted/60 font-semibold flex items-center gap-1.5">
+                  <ShieldAlert className="w-2.5 h-2.5" /> Regulatory
+                </p>
+              </div>
+            )}
+
+            {regulatoryTabs.map((tab) => {
+              const isActive = activeResultTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveResultTab(tab.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all duration-200 group ${
+                    isActive
+                      ? 'bg-accent/10 text-accent'
+                      : 'hover:bg-surface/60 hover:text-text-primary text-text-muted'
+                  }`}
+                >
+                  <tab.icon className={`w-3.5 h-3.5 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'}`} />
+                  <span className={`text-[12px] font-medium ${isActive ? 'text-text-primary' : ''}`}>{tab.label}</span>
+                </button>
+              );
+            })}
+
+            {/* Visual section label for full mode */}
+            {agentUpdateMode === 'full' && visualTabs.length > 0 && (
+              <div className="px-3 pt-2 pb-0.5">
+                <p className="text-[9px] uppercase tracking-wider text-text-muted/60 font-semibold flex items-center gap-1.5">
+                  <Palette className="w-2.5 h-2.5" /> Design
+                </p>
+              </div>
+            )}
+
+            {visualTabs.map((tab) => {
+              const isActive = activeResultTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveResultTab(tab.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all duration-200 group ${
+                    isActive
+                      ? 'bg-accent/10 text-accent'
+                      : 'hover:bg-surface/60 hover:text-text-primary text-text-muted'
+                  }`}
+                >
+                  <tab.icon className={`w-3.5 h-3.5 ${isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'}`} />
+                  <span className={`text-[12px] font-medium ${isActive ? 'text-text-primary' : ''}`}>{tab.label}</span>
+                </button>
+              );
+            })}
+          </>
+        )}
       </nav>
 
-      <div className="p-4 border-t border-surface-border space-y-1">
+      {/* Footer */}
+      <div className="p-3 space-y-0.5">
+        <div className="h-px bg-surface-border/40 mb-2" />
         <button
-            disabled
-            className="flex items-center gap-3 px-3 py-3 text-sm font-bold bg-surface text-text-muted w-full rounded-lg cursor-not-allowed opacity-50 mb-2"
+          disabled
+          className="flex items-center gap-2.5 px-3 py-2 text-[12px] font-bold bg-surface/40 text-text-muted w-full rounded-xl cursor-not-allowed opacity-50"
         >
-          <Mic className="w-4 h-4" />
+          <Mic className="w-3.5 h-3.5" />
           <span>Voice Consultant</span>
-          <span className="ml-auto text-[9px] uppercase tracking-wider font-semibold">Coming Soon</span>
+          <span className="ml-auto text-[8px] uppercase tracking-wider font-semibold">Soon</span>
         </button>
         {user && (
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs text-text-muted truncate" title={user.email}>{user.email}</p>
+          <div className="px-3 py-1.5">
+            <p className="text-[11px] text-text-muted truncate" title={user.email}>{user.email}</p>
           </div>
         )}
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 text-sm text-text-muted hover:text-warning w-full hover:bg-surface rounded-md transition-colors"
+          className="flex items-center gap-2.5 px-3 py-1.5 text-[12px] text-text-muted hover:text-warning w-full hover:bg-surface/40 rounded-xl transition-colors"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           <span>Sign Out</span>
         </button>
       </div>

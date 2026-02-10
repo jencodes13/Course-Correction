@@ -48,6 +48,8 @@ interface VisualOutputProps {
     missingTopics?: string[];
   } | null;
   disclaimer?: string;
+  externalActiveTab?: string;
+  onExternalTabChange?: (tab: string) => void;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1658,9 +1660,26 @@ const VisualOutput: React.FC<VisualOutputProps> = ({
   preGeneratedSlides,
   slideVerification,
   disclaimer,
+  externalActiveTab,
+  onExternalTabChange,
 }) => {
   const displayTitle = presentationTitle || topic;
-  const [activeTab, setActiveTab] = useState<VisualTab>('document');
+  const [internalTab, setInternalTab] = useState<VisualTab>(
+    (externalActiveTab as VisualTab) || 'document'
+  );
+
+  // Sync with external tab changes
+  React.useEffect(() => {
+    if (externalActiveTab && ['document', 'study-guide', 'slides', 'quiz'].includes(externalActiveTab)) {
+      setInternalTab(externalActiveTab as VisualTab);
+    }
+  }, [externalActiveTab]);
+
+  const activeTab = internalTab;
+  const setActiveTab = (tab: VisualTab) => {
+    setInternalTab(tab);
+    onExternalTabChange?.(tab);
+  };
   const [isDownloading, setIsDownloading] = useState(false);
   const studyGuideSectionsRef = useRef<StudyGuideSection[]>([]);
   const quizQuestionsRef = useRef<AIQuizQuestion[]>([]);

@@ -42,6 +42,7 @@ import { extractPdfPageText } from '../utils/pdfTextExtractor';
 import RegulatoryOutput from './RegulatoryOutput';
 import VisualOutput from './VisualOutput';
 import LocationInput from './LocationInput';
+import { useWorkflow } from '../contexts/WorkflowContext';
 import {
   UpdateMode,
   InferredSector,
@@ -188,6 +189,8 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
   onBack,
   onComplete,
 }) => {
+  const { setAgentResultsReady, activeResultTab, setActiveResultTab } = useWorkflow();
+
   // Internal step: 1=sector, 2=findings, 3=style, 4=agents/results
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -243,8 +246,10 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
   const [showResults, setShowResults] = useState(false);
   const agentProgressIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
-  // Full mode tab
-  const [fullModeTab, setFullModeTab] = useState<'regulatory' | 'design'>('regulatory');
+  // Full mode tab - derived from context's activeResultTab
+  const REGULATORY_TAB_IDS = ['redline', 'report', 'fact-check'];
+  const VISUAL_TAB_IDS = ['document', 'study-guide', 'slides', 'quiz'];
+  const fullModeTab: 'regulatory' | 'design' = VISUAL_TAB_IDS.includes(activeResultTab) ? 'design' : 'regulatory';
 
   // Pre-generated content from visual mode agent orchestration
   const [preGeneratedStudyGuide, setPreGeneratedStudyGuide] = useState<StudyGuideSection[]>([]);
@@ -256,6 +261,20 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
   // PDF page images
   const [pageImages, setPageImages] = useState<string[]>([]);
   const [extractedPages, setExtractedPages] = useState<ExtractedPageData[]>([]);
+
+  // Signal results ready to context (so sidebar shows deliverable tabs)
+  useEffect(() => {
+    if (showResults && result) {
+      setAgentResultsReady(true, updateMode);
+    }
+  }, [showResults, result, updateMode, setAgentResultsReady]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      setAgentResultsReady(false);
+    };
+  }, [setAgentResultsReady]);
 
   // Extract PDF pages on mount
   useEffect(() => {
@@ -1515,30 +1534,13 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
       if (updateMode === 'full') {
         return (
           <div>
-            <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-surface-border -mx-8 px-8">
-              <div className="max-w-5xl mx-auto flex gap-1 pt-3 pb-0">
-                {([
-                  { id: 'regulatory' as const, label: 'Regulatory Updates', icon: <ShieldCheck className="w-4 h-4" /> },
-                  { id: 'design' as const, label: 'Design Materials', icon: <Palette className="w-4 h-4" /> },
-                ] as const).map(tab => (
-                  <button key={tab.id} onClick={() => setFullModeTab(tab.id)}
-                    className="flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-all rounded-t-lg"
-                    style={{
-                      color: fullModeTab === tab.id ? '#c8956c' : 'rgba(245,240,224,0.5)',
-                      borderBottom: fullModeTab === tab.id ? '2px solid #c8956c' : '2px solid transparent',
-                      background: fullModeTab === tab.id ? 'rgba(200,149,108,0.05)' : 'transparent',
-                    }}>
-                    {tab.icon} {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {fullModeTab === 'regulatory' ? (
               <RegulatoryOutput result={result} findings={findings} approvedFindingIds={approvedFindingIds}
                 pageImages={pageImages} extractedPages={extractedPages} selectedSector={selectedSector}
                 location={location} topic={topic} presentationTitle={courseSummaryResult?.courseTitle || topic}
-                updateMode={updateMode} onReset={onComplete} verificationResults={verificationResults} />
+                updateMode={updateMode} onReset={onComplete} verificationResults={verificationResults}
+                externalActiveTab={REGULATORY_TAB_IDS.includes(activeResultTab) ? activeResultTab : undefined}
+                onExternalTabChange={setActiveResultTab} />
             ) : (
               <VisualOutput result={result} pageImages={pageImages} extractedPages={extractedPages}
                 generatedTheme={generatedTheme} selectedSector={selectedSector} location={location}
@@ -1547,7 +1549,9 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
                 preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
                 preGeneratedQuiz={preGeneratedQuiz.length > 0 ? preGeneratedQuiz : undefined}
                 preGeneratedSlides={preGeneratedSlides.length > 0 ? preGeneratedSlides : undefined}
-                slideVerification={slideVerification} disclaimer={slideDisclaimer} />
+                slideVerification={slideVerification} disclaimer={slideDisclaimer}
+                externalActiveTab={VISUAL_TAB_IDS.includes(activeResultTab) ? activeResultTab : undefined}
+                onExternalTabChange={setActiveResultTab} />
             )}
           </div>
         );
@@ -1558,7 +1562,8 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
           <RegulatoryOutput result={result} findings={findings} approvedFindingIds={approvedFindingIds}
             pageImages={pageImages} extractedPages={extractedPages} selectedSector={selectedSector}
             location={location} topic={topic} presentationTitle={courseSummaryResult?.courseTitle || topic}
-            updateMode={updateMode} onReset={onComplete} verificationResults={verificationResults} />
+            updateMode={updateMode} onReset={onComplete} verificationResults={verificationResults}
+            externalActiveTab={activeResultTab} onExternalTabChange={setActiveResultTab} />
         );
       }
 
@@ -1570,7 +1575,8 @@ const AgentFlow: React.FC<AgentFlowProps> = ({
           preGeneratedStudyGuide={preGeneratedStudyGuide.length > 0 ? preGeneratedStudyGuide : undefined}
           preGeneratedQuiz={preGeneratedQuiz.length > 0 ? preGeneratedQuiz : undefined}
           preGeneratedSlides={preGeneratedSlides.length > 0 ? preGeneratedSlides : undefined}
-          slideVerification={slideVerification} disclaimer={slideDisclaimer} />
+          slideVerification={slideVerification} disclaimer={slideDisclaimer}
+          externalActiveTab={activeResultTab} onExternalTabChange={setActiveResultTab} />
       );
     }
   }

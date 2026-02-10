@@ -202,39 +202,39 @@ const AppInner: React.FC = () => {
             <LiveAssistant onClose={() => setIsLiveActive(false)} />
         )}
 
-        <main className="ml-64 flex-1 h-screen overflow-y-auto relative flex flex-col">
-          {/* Modern Header */}
-          <header className="h-20 bg-card/80 backdrop-blur-md border-b border-surface-border sticky top-0 z-10 flex items-center justify-between px-8">
-              <div className="flex items-center gap-2 text-sm font-medium text-text-muted">
-                  <div className="flex items-center gap-2 hover:text-accent transition-colors cursor-pointer" onClick={() => goToStep(AppStep.DASHBOARD)}>
-                      <Home className="w-4 h-4" />
+        <main className="ml-52 flex-1 h-screen overflow-y-auto relative flex flex-col">
+          {/* Floating Header */}
+          <header className="mx-3 mt-3 px-5 h-12 rounded-2xl bg-card/80 backdrop-blur-xl border border-surface-border/60 shadow-lg sticky top-3 z-10 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+                  <div className="flex items-center hover:text-accent transition-colors cursor-pointer" onClick={() => goToStep(AppStep.DASHBOARD)}>
+                      <Home className="w-3.5 h-3.5" />
                   </div>
-                  <ChevronRight className="w-4 h-4 text-text-muted" />
+                  <ChevronRight className="w-3 h-3 text-text-muted/50" />
                   <span className={!projectName ? "text-accent font-semibold" : "text-text-primary"}>
                       {projectName || "Untitled"}
                   </span>
                   {projectName && (
                       <>
-                          <ChevronRight className="w-4 h-4 text-text-muted" />
-                          <span className="text-accent font-semibold bg-accent/10 px-2 py-1 rounded-md">
+                          <ChevronRight className="w-3 h-3 text-text-muted/50" />
+                          <span className="text-accent font-semibold bg-accent/10 px-1.5 py-0.5 rounded-md text-[11px]">
                               {getBreadcrumb()}
                           </span>
                       </>
                   )}
               </div>
 
-              <div className="flex items-center gap-3">
-                  <div className="px-3 py-1 bg-success/10 text-success text-xs font-bold rounded-full border border-success/20 flex items-center gap-1.5">
+              <div className="flex items-center gap-2.5">
+                  <div className="px-2.5 py-0.5 bg-success/10 text-success text-[10px] font-bold rounded-full border border-success/20 flex items-center gap-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                      System Operational
+                      Online
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-card border-2 border-surface-border shadow-sm overflow-hidden">
+                  <div className="w-7 h-7 rounded-full bg-card border-2 border-surface-border shadow-sm overflow-hidden">
                       <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Felix`} alt="User" />
                   </div>
               </div>
           </header>
 
-          <div className="flex-1 py-8 px-8">
+          <div className="flex-1 py-6 px-6">
               {renderContent()}
           </div>
         </main>

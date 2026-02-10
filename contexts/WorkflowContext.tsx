@@ -6,6 +6,7 @@ import {
   IngestedFile,
   RegulatoryUpdate,
   VisualTransformation,
+  UpdateMode,
 } from '../types';
 
 export interface User {
@@ -27,6 +28,9 @@ interface WorkflowState {
   isUsageDashboardOpen: boolean;
   user: User | null;
   currentProjectId: string | null;
+  agentResultsReady: boolean;
+  agentUpdateMode: UpdateMode | null;
+  activeResultTab: string;
 }
 
 interface WorkflowActions {
@@ -44,6 +48,8 @@ interface WorkflowActions {
   setIsUsageDashboardOpen: (val: boolean) => void;
   setUser: (user: User | null) => void;
   setCurrentProjectId: (id: string | null) => void;
+  setAgentResultsReady: (ready: boolean, mode?: UpdateMode) => void;
+  setActiveResultTab: (tab: string) => void;
   resetProject: () => void;
   clearProjectData: () => void;
 }
@@ -66,8 +72,25 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isUsageDashboardOpen, setIsUsageDashboardOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [agentResultsReady, setAgentResultsReadyState] = useState(false);
+  const [agentUpdateMode, setAgentUpdateMode] = useState<UpdateMode | null>(null);
+  const [activeResultTab, setActiveResultTab] = useState('');
 
   const goToStep = useCallback((step: AppStep) => setCurrentStep(step), []);
+
+  const setAgentResultsReady = useCallback((ready: boolean, mode?: UpdateMode) => {
+    setAgentResultsReadyState(ready);
+    if (ready && mode) {
+      setAgentUpdateMode(mode);
+      // Set sensible default tab
+      if (mode === 'regulatory') setActiveResultTab('redline');
+      else if (mode === 'visual') setActiveResultTab('slides');
+      else setActiveResultTab('redline'); // full mode starts on regulatory
+    } else if (!ready) {
+      setAgentUpdateMode(null);
+      setActiveResultTab('');
+    }
+  }, []);
 
   const addFiles = useCallback((newFiles: IngestedFile[]) => {
     setFiles(prev => [...prev, ...newFiles]);
@@ -82,6 +105,9 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setRegulatoryUpdates([]);
     setVisualTransformations([]);
     setCurrentProjectId(null);
+    setAgentResultsReadyState(false);
+    setAgentUpdateMode(null);
+    setActiveResultTab('');
     setCurrentStep(AppStep.LANDING);
   }, []);
 
@@ -94,6 +120,9 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setRegulatoryUpdates([]);
     setVisualTransformations([]);
     setCurrentProjectId(null);
+    setAgentResultsReadyState(false);
+    setAgentUpdateMode(null);
+    setActiveResultTab('');
   }, []);
 
   const value: WorkflowContextType = {
@@ -110,6 +139,9 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isUsageDashboardOpen,
     user,
     currentProjectId,
+    agentResultsReady,
+    agentUpdateMode,
+    activeResultTab,
     goToStep,
     setProjectName,
     setRawContent,
@@ -124,6 +156,8 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setIsUsageDashboardOpen,
     setUser,
     setCurrentProjectId,
+    setAgentResultsReady,
+    setActiveResultTab,
     resetProject,
     clearProjectData,
   };
