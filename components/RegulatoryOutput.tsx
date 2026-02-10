@@ -4,27 +4,15 @@ import {
   ExternalLink,
   Download,
   FileText,
-  Eye,
   FileCheck,
   AlertTriangle,
   ShieldAlert,
   BookOpen,
   Layers,
   ChevronRight,
-  Search,
   CheckCircle2,
   XCircle,
   MinusCircle,
-  HelpCircle,
-  Clock,
-  BarChart3,
-  Tag,
-  Package,
-  Presentation,
-  FileType,
-  BrainCircuit,
-  Sparkles,
-  ArrowRight,
 } from 'lucide-react';
 import {
   UpdateMode,
@@ -36,9 +24,7 @@ import {
   BulletDiff,
   RedlineEntry,
   VerifiedFinding,
-  CourseSummaryResult,
 } from '../types';
-import { QuizQuestion } from '../services/geminiService';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Props
@@ -56,8 +42,6 @@ interface RegulatoryOutputProps {
   updateMode: UpdateMode;
   onReset: () => void;
   verificationResults?: VerifiedFinding[];
-  quizResults?: QuizQuestion[];
-  courseSummaryResult?: CourseSummaryResult | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -860,7 +844,7 @@ function downloadTabContent(tabId: DeliverableTab, containerRef: React.RefObject
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CourseCorrect — ${tabId === 'redline' ? 'Redline Report' : tabId === 'report' ? 'Change Report' : tabId === 'annotated' ? 'Annotated Original' : tabId === 'fact-check' ? 'Fact Check' : tabId === 'quiz' ? 'Quiz' : 'Clean Document'}</title>
+<title>CourseCorrect — ${tabId === 'redline' ? 'Redline Report' : tabId === 'report' ? 'Change Report' : 'Fact Check'}</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 2rem; background: #fff; color: #1a1a1a; }
   img { max-width: 100%; height: auto; }
@@ -1621,15 +1605,12 @@ ${questionsHtml}
 // Main Component
 // ────────────────────────────────────────────────────────────────────────────
 
-type DeliverableTab = 'course-module' | 'redline' | 'report' | 'annotated' | 'clean' | 'fact-check' | 'quiz';
+type DeliverableTab = 'redline' | 'report' | 'fact-check';
 
 const tabConfig: { id: DeliverableTab; label: string; icon: React.ReactNode; downloadLabel: string }[] = [
-  { id: 'course-module', label: 'Course Module', icon: <Package className="w-4 h-4" />, downloadLabel: 'Download All' },
   { id: 'redline', label: 'Redline View', icon: <FileText className="w-4 h-4" />, downloadLabel: 'Download Redline PDF' },
   { id: 'report', label: 'Change Report', icon: <FileCheck className="w-4 h-4" />, downloadLabel: 'Download Report' },
-  { id: 'clean', label: 'Clean Document', icon: <BookOpen className="w-4 h-4" />, downloadLabel: 'Download Clean PDF' },
   { id: 'fact-check', label: 'Fact Check', icon: <ShieldAlert className="w-3 h-3" />, downloadLabel: 'Download Fact Check' },
-  { id: 'quiz', label: 'Quiz', icon: <HelpCircle className="w-3 h-3" />, downloadLabel: 'Download Quiz' },
 ];
 
 const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
@@ -1644,10 +1625,8 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
   updateMode,
   onReset,
   verificationResults,
-  quizResults,
-  courseSummaryResult,
 }) => {
-  const [activeTab, setActiveTab] = useState<DeliverableTab>('course-module');
+  const [activeTab, setActiveTab] = useState<DeliverableTab>('redline');
   const tabContentRef = useRef<HTMLDivElement>(null);
 
   const redlineEntries = useMemo(
@@ -1679,14 +1658,8 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
               {changedCount} section{changedCount !== 1 ? 's' : ''} updated
             </h2>
             <p className="text-text-muted text-sm">
-              {selectedSector} &middot; {location || 'United States'} &middot; {result.citations.length} verified source{result.citations.length !== 1 ? 's' : ''}
+              {selectedSector} &middot; {location || 'United States'} &middot; {result.citations.length} source{result.citations.length !== 1 ? 's' : ''}
             </p>
-            {result.metadata.searchQueries.length > 0 && (
-              <p className="text-text-muted text-xs mt-2 flex items-center gap-1">
-                <Search className="w-3 h-3" />
-                Verified via: {result.metadata.searchQueries.slice(0, 3).join(', ')}
-              </p>
-            )}
           </div>
           <button
             onClick={onReset}
@@ -1696,9 +1669,6 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
             <RefreshCw className="w-3.5 h-3.5" /> New analysis
           </button>
         </div>
-
-        {/* Course Summary */}
-        {courseSummaryResult && <CourseSummaryBar summary={courseSummaryResult} />}
 
         {/* Tab switcher */}
         <div className="flex items-center gap-1 mb-8 p-1 rounded-xl" style={{
@@ -1728,19 +1698,6 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
 
         {/* Tab content */}
         <div ref={tabContentRef}>
-          {activeTab === 'course-module' && (
-            <CourseModuleTab
-              slides={result.slides}
-              citations={result.citations}
-              courseSummaryResult={courseSummaryResult}
-              quizResults={quizResults}
-              pageImages={pageImages}
-              entries={redlineEntries}
-              topic={topic}
-              sector={selectedSector}
-              tabContentRef={tabContentRef}
-            />
-          )}
           {activeTab === 'redline' && (
             <RedlineView entries={redlineEntries} citations={result.citations} />
           )}
@@ -1754,14 +1711,8 @@ const RegulatoryOutput: React.FC<RegulatoryOutputProps> = ({
               location={location || 'United States'}
             />
           )}
-          {activeTab === 'clean' && (
-            <CleanDocumentTab slides={result.slides} citations={result.citations} pageImages={pageImages} entries={redlineEntries} />
-          )}
           {activeTab === 'fact-check' && (
             <FactCheckTab verificationResults={verificationResults} />
-          )}
-          {activeTab === 'quiz' && (
-            <QuizTab quizResults={quizResults} />
           )}
         </div>
 

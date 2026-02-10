@@ -3416,8 +3416,6 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
                 updateMode={updateMode}
                 onReset={resetAll}
                 verificationResults={verificationResults}
-                quizResults={quizResults}
-                courseSummaryResult={courseSummaryResult}
               />
             ) : (
               <VisualOutput
@@ -3456,8 +3454,6 @@ const DemoFlow: React.FC<DemoFlowProps> = ({ onBack }) => {
             updateMode={updateMode}
             onReset={resetAll}
             verificationResults={verificationResults}
-            quizResults={quizResults}
-            courseSummaryResult={courseSummaryResult}
           />
         );
       }
