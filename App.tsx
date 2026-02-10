@@ -186,7 +186,7 @@ const AppInner: React.FC = () => {
   }
 
   return (
-    <AuthGate onBack={() => goToStep(AppStep.LANDING)}>
+    <AuthGate onBack={() => goToStep(AppStep.LANDING)} onDemo={() => goToStep(AppStep.DEMO)}>
       <div className="flex min-h-screen bg-background font-sans">
         <Sidebar />
 

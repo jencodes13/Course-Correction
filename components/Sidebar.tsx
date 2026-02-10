@@ -30,15 +30,15 @@ const Sidebar: React.FC = () => {
   return (
     <div className="w-64 bg-card text-text-muted flex flex-col h-screen fixed left-0 top-0 border-r border-surface-border flex-shrink-0 z-20">
       <div className="p-6 border-b border-surface-border">
-        <div className="flex items-center gap-3">
+        <button onClick={() => goToStep(AppStep.LANDING)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 flex items-center justify-center">
             <img src="/logo-cropped.png" alt="Course Correction" width={36} height={36} style={{ objectFit: 'contain' }} />
           </div>
-          <div>
+          <div className="text-left">
             <span className="text-lg font-bold text-text-primary tracking-tight block leading-none">Course Correction</span>
             <span className="text-[10px] uppercase tracking-wider text-text-muted font-medium">Enterprise Edition</span>
           </div>
-        </div>
+        </button>
       </div>
 
       {projectName && (

@@ -8,9 +8,10 @@ const ACCESS_STORAGE_KEY = 'coursecorrect_access_verified';
 interface AuthGateProps {
   children: React.ReactNode;
   onBack?: () => void;
+  onDemo?: () => void;
 }
 
-const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
+const AuthGate: React.FC<AuthGateProps> = ({ children, onBack, onDemo }) => {
   const { user, setUser } = useWorkflow();
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -21,10 +22,11 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Access code gate
+  // Access code gate — skip if user chooses email login
   const [accessVerified, setAccessVerified] = useState(() => {
     return localStorage.getItem(ACCESS_STORAGE_KEY) === 'true';
   });
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [accessCode, setAccessCode] = useState('');
   const [accessError, setAccessError] = useState('');
 
@@ -102,8 +104,8 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
     return <>{children}</>;
   }
 
-  // Access code gate — shown before login form
-  if (!accessVerified) {
+  // Access code gate — shown before login form (skip if user chose email login)
+  if (!accessVerified && !showEmailLogin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -160,8 +162,23 @@ const AuthGate: React.FC<AuthGateProps> = ({ children, onBack }) => {
             </button>
 
             <p className="text-xs text-text-muted text-center pt-1">
-              Don't have a code? <button type="button" onClick={onBack} className="text-accent hover:underline">Try the free demo</button> instead.
+              Don't have a code? <button type="button" onClick={onDemo || onBack} className="text-accent hover:underline">Try the free demo</button> instead.
             </p>
+
+            <div className="flex items-center gap-3 pt-2">
+              <div className="flex-1 h-px bg-surface-border/60" />
+              <span className="text-[10px] text-text-muted uppercase tracking-wider">or</span>
+              <div className="flex-1 h-px bg-surface-border/60" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowEmailLogin(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-text-muted border border-surface-border hover:border-accent/30 hover:text-accent transition-all"
+            >
+              <Mail className="w-4 h-4" />
+              Sign in with email
+            </button>
           </form>
         </div>
       </div>
